@@ -53,7 +53,7 @@
     "publish": {
       "provider": "github",
       "owner": "waldusfeszter2-debug",
-      "repo": "nexus-browser",
+      "repo": "my-partition-program",
       "releaseType": "release"
     }
   }
