@@ -31,6 +31,9 @@ contextBridge.exposeInMainWorld('nexus', {
   setCursor:     (c) => ipcRenderer.send('ui:cursor', c),
   setModalOpen:  (o) => ipcRenderer.send('ui:modal-state', o),   // ← NOWE
 
+    /* DISCORD RPC */
+  setDiscordGame: (game) => ipcRenderer.send('rpc:set-game', game),   // ← NOWE
+
   /* AUTO-UPDATE */
   checkForUpdates:   () => ipcRenderer.invoke('update:check'),
   downloadUpdate:    () => ipcRenderer.invoke('update:download'),

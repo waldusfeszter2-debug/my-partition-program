@@ -1,5 +1,7 @@
 /* ==========================================================================
-   NEXUS 1.0.8 – main.js  (poprawiony: sidebar/modal/toast over WebContentsView)
+   NEXUS 1.1.1 – main.js
+   + Discord Rich Presence (discord-rpc.js)
+   – auto-updater BEZ ZMIAN
    ========================================================================== */
 const {
   app, BrowserWindow, WebContentsView, ipcMain,
@@ -10,8 +12,11 @@ const fs = require('fs');
 const os = require('os');
 const crypto = require('crypto');
 
+/* --- DISCORD RPC --- */
+const discordRpc = require('./discord-rpc');
+
 /* --- STAŁE LAYOUTU --- */
-const SIDEBAR_WIDTH = 56;   // ← NOWE: szerokość sidebara (zgodne z --sidebar-w w CSS)
+const SIDEBAR_WIDTH = 56;
 
 /* --- ŚCIEŻKI --- */
 const USER_DIR       = app.getPath('userData');
@@ -32,9 +37,10 @@ const DEFAULT_SETTINGS = {
   hardwareAcceleration: true, smoothScrolling: true, backgroundThrottling: true,
   customCursor: 'default', showBookmarksBar: true,
   restoreSession: true, askDownloadPath: false,
+  discordRpc: true,                     // ← NOWE: włącz/wyłącz RPC
 };
 
-/* --- ADBLOCK (bez zmian) --- */
+/* --- ADBLOCK --- */
 const AD_HOSTS = [
   'doubleclick.net','googlesyndication.com','googleadservices.com','google-analytics.com',
   'googletagmanager.com','googletagservices.com','adservice.google.com','pagead2.googlesyndication.com',
@@ -81,7 +87,7 @@ const COSMETIC_CSS = `
   { display: none !important; visibility: hidden !important; height: 0 !important; }
 `;
 
-/* --- PERSYSTENCJA (bez zmian) --- */
+/* --- PERSYSTENCJA --- */
 function readJson(file, fallback) {
   try { if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, 'utf-8')); }
   catch (e) { console.warn('[NEXUS] readJson:', file, e.message); }
@@ -108,7 +114,7 @@ function saveBookmarks() { writeJson(BM_PATH, bookmarks); }
 function saveVault()     { fs.writeFileSync(VAULT_PATH, JSON.stringify(vault, null, 2), { mode: 0o600 }); }
 function saveDownloads() { writeJson(DL_PATH, downloads.slice(-200)); }
 
-/* --- AES (bez zmian) --- */
+/* --- AES --- */
 function getVaultKey() {
   if (fs.existsSync(VAULT_KEY_PATH)) return Buffer.from(fs.readFileSync(VAULT_KEY_PATH, 'hex'), 'hex');
   const key = crypto.randomBytes(32);
@@ -165,9 +171,9 @@ let activeTabId = null;
 let nextTabId = 1;
 let chromeHeight = 92;
 let hubWidth = 0;
-let modalOpen = false;   // ← NOWE: blokuje wyświetlanie WebContentsView gdy modal otwarty
+let modalOpen = false;
 
-/* --- AUTO-UPDATER (bez zmian, pełna wersja) --- */
+/* --- AUTO-UPDATER (BEZ ZMIAN) --- */
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
 try {
@@ -351,6 +357,13 @@ function initDownloadHandler() {
   console.log('[NEXUS] Download handler OK');
 }
 
+/* ---------- DETEKCJA GRY DO RPC ---------- */
+function detectAndSetGame(title, url) {
+  if (!settings.discordRpc) return;
+  const game = discordRpc.detectGame(title, url);
+  discordRpc.setGame(game);
+}
+
 /* --- KARTY --- */
 function createTab(url = settings.homepage, focus = true) {
   if (!win) return null;
@@ -371,18 +384,27 @@ function createTab(url = settings.homepage, focus = true) {
 
   const wc = view.webContents;
 
-  wc.on('page-title-updated', (_e, title) => updateTab(id, { title }));
+  wc.on('page-title-updated', (_e, title) => {
+    updateTab(id, { title });
+    if (id === activeTabId) detectAndSetGame(title, tabs.get(id)?.url);
+  });
   wc.on('page-favicon-updated', (_e, favs) => { if (favs && favs[0]) updateTab(id, { favicon: favs[0] }); });
   wc.on('did-start-loading', () => updateTab(id, { loading: true }));
   wc.on('did-stop-loading', () => updateTab(id, { loading: false }));
   wc.on('did-navigate', (_e, u) => {
     updateTab(id, { url: u });
     addHistory(u, tabs.get(id)?.title || '');
-    if (id === activeTabId) pushNavState();
+    if (id === activeTabId) {
+      pushNavState();
+      detectAndSetGame(tabs.get(id)?.title, u);
+    }
   });
   wc.on('did-navigate-in-page', (_e, u) => {
     updateTab(id, { url: u });
-    if (id === activeTabId) pushNavState();
+    if (id === activeTabId) {
+      pushNavState();
+      detectAndSetGame(tabs.get(id)?.title, u);
+    }
   });
   wc.on('did-finish-load', () => { if (settings.adblock) wc.insertCSS(COSMETIC_CSS).catch(() => {}); });
   wc.on('render-process-gone', () => updateTab(id, { title: '⚠ Karta uległa awarii', loading: false }));
@@ -480,12 +502,10 @@ function setActiveTab(id) {
   if (!win.isDestroyed()) win.webContents.send('tab:activated', { id });
   broadcastTabList();
   pushNavState();
+  detectAndSetGame(t.title, t.url);
 }
 
-/* ═════════════════════════════════════════════════════════════════════════
-   KLUCZOWA POPRAWKA: view NIE zasłania sidebara, a gdy modal otwarty —
-   jest ukryty (bounds = 0×0), żeby dialog z renderera był widoczny.
-   ═════════════════════════════════════════════════════════════════════════ */
+/* --- LAYOUT --- */
 function layout() {
   if (!win) return;
   const [w, h] = win.getContentSize();
@@ -498,9 +518,9 @@ function layout() {
   }
 
   a.view.setBounds({
-    x: SIDEBAR_WIDTH,                                          // ← było 0
+    x: SIDEBAR_WIDTH,
     y: chromeHeight,
-    width: Math.max(0, w - SIDEBAR_WIDTH - hubWidth),          // ← uwzględnia sidebar
+    width: Math.max(0, w - SIDEBAR_WIDTH - hubWidth),
     height: Math.max(0, h - chromeHeight),
   });
 }
@@ -571,8 +591,6 @@ ipcMain.on('ui:insets', (_e, { top, right }) => {
 });
 ipcMain.on('ui:hub', (_e, open) => { hubWidth = open ? 380 : 0; layout(); });
 ipcMain.on('ui:cursor', (_e, cursor) => { settings.customCursor = cursor; saveSettings(); });
-
-/* ═══ NOWE: IPC do ukrywania view podczas otwartego modala ═══ */
 ipcMain.on('ui:modal-state', (_e, open) => {
   modalOpen = !!open;
   layout();
@@ -633,13 +651,22 @@ ipcMain.handle('power:clean', async () => {
 });
 
 ipcMain.handle('power:apply', (_e, patch) => {
-  const keys = ['ramLimit','processLimit','fpsLimit','vsync','adblock','httpsOnly','doNotTrack','backgroundThrottling'];
+  const keys = ['ramLimit','processLimit','fpsLimit','vsync','adblock','httpsOnly','doNotTrack','backgroundThrottling','discordRpc'];
   for (const k of keys) {
     if (typeof patch[k] === 'number' || typeof patch[k] === 'boolean') settings[k] = patch[k];
   }
   if (typeof patch.backgroundThrottling === 'boolean') {
     for (const t of tabs.values()) {
       try { t.view.webContents.setBackgroundThrottling(settings.backgroundThrottling); } catch (e) {}
+    }
+  }
+  if (typeof patch.discordRpc === 'boolean') {
+    if (patch.discordRpc) {
+      discordRpc.init();
+      const a = tabs.get(activeTabId);
+      if (a) detectAndSetGame(a.title, a.url);
+    } else {
+      discordRpc.clearGame();
     }
   }
   saveSettings();
@@ -886,6 +913,9 @@ app.whenReady().then(async () => {
     });
   }
 
+  /* --- DISCORD RPC START --- */
+  if (settings.discordRpc) discordRpc.init();
+
   initDownloadHandler();
   await loadSavedExtensions();
   createWindow();
@@ -894,5 +924,8 @@ app.whenReady().then(async () => {
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+app.on('window-all-closed', () => {
+  discordRpc.clearGame();
+  if (process.platform !== 'darwin') app.quit();
+});
 process.on('uncaughtException', err => console.error('[NEXUS] Nieoczekiwany błąd:', err));
