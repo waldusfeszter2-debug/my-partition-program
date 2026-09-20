@@ -1,0 +1,60 @@
+{
+  "name": "nexus-browser",
+  "productName": "NEXUS",
+  "version": "1.0.1",
+  "description": "Premium gaming browser with Apple Liquid Glass design",
+  "main": "main.js",
+  "author": "NEXUS Team",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win --x64",
+    "build:publish": "electron-builder --win --x64 --publish always"
+  },
+  "dependencies": {
+    "electron-log": "^5.2.0",
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "electron": "^44.4.3",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.nexus.browser",
+    "productName": "NEXUS",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!dist/**",
+      "!**/*.map",
+      "!node_modules/.cache/**",
+      "!**/{.git,.github,.vscode}"
+    ],
+"win": {
+  "target": [
+    { "target": "nsis", "arch": ["x64"] }
+  ],
+  "artifactName": "NEXUS-Setup-${version}.${ext}",
+  "signAndEditExecutable": false
+},
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "NEXUS",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "include": "build/installer.nsh"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "TWOJ-LOGIN",
+      "repo": "nexus-browser",
+      "releaseType": "release"
+    }
+  }
+}

@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: http:; script-src 'self'" />
+  <title>Ustawienia NEXUS</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="settings.css" />
+</head>
+<body class="settings-body">
+
+  <div class="settings-header">
+    <h1>Ustawienia</h1>
+    <div class="win-controls">
+      <button class="wc" id="setMin" title="Minimalizuj">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 12h14"/></svg>
+      </button>
+      <button class="wc wc-close" id="setClose" title="Zamknij">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="settings-layout">
+    <nav class="settings-nav">
+      <button class="settings-tab active" data-tab="general">Ogólne</button>
+      <button class="settings-tab" data-tab="appearance">Wygląd</button>
+      <button class="settings-tab" data-tab="privacy">Prywatność</button>
+      <button class="settings-tab" data-tab="performance">Wydajność</button>
+      <button class="settings-tab" data-tab="extensions">Rozszerzenia</button>
+      <button class="settings-tab" data-tab="passwords">Menedżer haseł</button>
+      <button class="settings-tab" data-tab="cookies">Menedżer cookies</button>
+      <button class="settings-tab" data-tab="downloads">Pobrania</button>
+      <button class="settings-tab" data-tab="advanced">Zaawansowane</button>
+      <button class="settings-tab" data-tab="about">O NEXUS</button>
+    </nav>
+
+    <div class="settings-content">
+
+      <section class="settings-panel active" data-panel="general">
+        <h2>Ogólne</h2>
+        <div class="setting-row">
+          <label>Strona główna</label>
+          <input type="text" id="setHomepage" placeholder="https://www.google.com" />
+        </div>
+        <div class="setting-row">
+          <label>Wyszukiwarka</label>
+          <select id="setSearch">
+            <option value="https://www.google.com/search?q=">Google</option>
+            <option value="https://duckduckgo.com/?q=">DuckDuckGo</option>
+            <option value="https://www.bing.com/search?q=">Bing</option>
+            <option value="https://search.brave.com/search?q=">Brave</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <label>Przywracaj sesję po restarcie</label>
+          <input type="checkbox" id="setRestore" class="switch" />
+        </div>
+        <div class="setting-row">
+          <label>Pokaż pasek zakładek</label>
+          <input type="checkbox" id="setBookmarksBar" class="switch" />
+        </div>
+      </section>
+
+      <section class="settings-panel" data-panel="appearance">
+        <h2>Wygląd</h2>
+        <div class="setting-row">
+          <label>Motyw</label>
+          <select id="setTheme">
+            <option value="liquid-glass">Liquid Glass</option>
+            <option value="ultra-dark">Ultra Dark</option>
+            <option value="cyberpunk">Cyberpunk</option>
+            <option value="apple-clean">Apple Clean</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <label>Niestandardowy kursor</label>
+          <select id="setCursor">
+            <option value="default">Domyślny systemowy</option>
+            <option value="nexus-arrow">NEXUS Arrow</option>
+            <option value="nexus-dot">NEXUS Dot</option>
+            <option value="nexus-crosshair">NEXUS Crosshair</option>
+            <option value="gamer-neon">Gamer Neon</option>
+            <option value="minimal">Minimal</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <label>Przezroczystość interfejsu</label>
+          <input type="range" id="setOpacity" min="10" max="100" step="1" value="72" />
+          <output id="outSetOpacity">72%</output>
+        </div>
+        <div class="setting-row">
+          <label>Rozmycie tła</label>
+          <input type="range" id="setBlur" min="0" max="60" step="1" value="28" />
+          <output id="outSetBlur">28px</output>
+        </div>
+        <div class="setting-row">
+          <label>Zaokrąglenie rogów</label>
+          <input type="range" id="setRadius" min="0" max="40" step="1" value="22" />
+          <output id="outSetRadius">22px</output>
+        </div>
+        <div class="setting-row">
+          <label>Neonowe akcenty RGB</label>
+          <input type="checkbox" id="setAccent" class="switch" checked />
+        </div>
+        <div class="setting-row">
+          <label>Licznik wydajności (HUD)</label>
+          <input type="checkbox" id="setHud" class="switch" checked />
+        </div>
+        <div class="setting-row">
+          <label>Animacje interfejsu</label>
+          <input type="checkbox" id="setAnim" class="switch" checked />
+        </div>
+      </section>
+
+      <section class="settings-panel" data-panel="privacy">
+        <h2>Prywatność i bezpieczeństwo</h2>
+        <div class="setting-row">
+          <label>Blokuj reklamy (Adblock)</label>
+          <input type="checkbox" id="setAdblock" class="switch" checked />
+        </div>
+        <div class="setting-row">
+          <label>Tylko HTTPS</label>
+          <input type="checkbox" id="setHttps" class="switch" />
+        </div>
+        <div class="setting-row">
+          <label>Do Not Track (DNT)</label>
+          <input type="checkbox" id="setDnt" class="switch" checked />
+        </div>
+        <div class="setting-row">
+          <label>Akceleracja sprzętowa</label>
+          <input type="checkbox" id="setHwAccel" class="switch" checked />
+        </div>
+        <div class="setting-row">
+          <label>Płynne przewijanie</label>
+          <input type="checkbox" id="setSmooth" class="switch" checked />
+        </div>
+        <div class="setting-row">
+          <label>Ograniczanie w tle</label>
+          <input type="checkbox" id="setThrottle" class="switch" checked />
+        </div>
+        <button class="btn-danger" id="btnClearData">Wyczyść wszystkie dane przeglądania</button>
+      </section>
+
+      <section class="settings-panel" data-panel="performance">
+        <h2>Wydajność</h2>
+        <div class="setting-row">
+          <label>Limit RAM (V8 heap)</label>
+          <input type="range" id="setRam" min="512" max="16384" step="256" value="4096" />
+          <output id="outSetRam">4096 MB</output>
+        </div>
+        <div class="setting-row">
+          <label>Limit procesów renderera</label>
+          <input type="range" id="setProc" min="0" max="16" step="1" value="0" />
+          <output id="outSetProc">Auto</output>
+        </div>
+        <div class="setting-row">
+          <label>Limit FPS interfejsu</label>
+          <input type="range" id="setFps" min="0" max="240" step="30" value="0" />
+          <output id="outSetFps">Bez limitu</output>
+        </div>
+        <div class="setting-row">
+          <label>V-Sync (odświeżanie)</label>
+          <input type="checkbox" id="setVsync" class="switch" checked />
+        </div>
+        <p class="hint">Limit RAM, procesów i V-Sync wymagają restartu przeglądarki.</p>
+        <button class="btn-primary" id="btnCleanMem">Wyczyść pamięć i zamroź karty</button>
+        <button class="btn-ghost" id="btnRestart">↻ Restart przeglądarki</button>
+        <div class="clean-report" id="settingsCleanReport"></div>
+      </section>
+
+      <section class="settings-panel" data-panel="extensions">
+        <h2>Rozszerzenia</h2>
+        <p class="hint">NEXUS obsługuje rozpakowane rozszerzenia Chrome (folder z manifest.json). Pobierz rozszerzenie, rozpakuj i wskaż folder.</p>
+        <div class="row-btns">
+          <button class="btn-primary" id="btnExtLoad">Wczytaj rozpakowane</button>
+          <button class="btn-ghost" id="btnExtStore">Otwórz Chrome Web Store</button>
+          <button class="btn-ghost" id="btnExtReload">Przeładuj wszystkie</button>
+        </div>
+        <div class="ext-list" id="extListFull">
+          <div class="muted">Brak wczytanych rozszerzeń</div>
+        </div>
+      </section>
+
+      <section class="settings-panel" data-panel="passwords">
+        <h2>Menedżer haseł</h2>
+        <p class="hint">Hasła są szyfrowane algorytmem AES-256-GCM i zapisywane lokalnie. Klucz nigdy nie opuszcza urządzenia.</p>
+        <div class="pw-add-form">
+          <input type="text" id="pwSite" placeholder="Witryna (np. github.com)" />
+          <input type="text" id="pwUsername" placeholder="Nazwa użytkownika / e-mail" />
+          <input type="password" id="pwPassword" placeholder="Hasło" />
+          <input type="text" id="pwCategory" placeholder="Kategoria (np. praca)" />
+          <button class="btn-primary" id="btnAddPassword">Dodaj hasło</button>
+        </div>
+        <input type="text" id="pwSearch" placeholder="Szukaj haseł…" class="search-input" />
+        <div class="pw-list" id="pwList">
+          <div class="muted">Brak zapisanych haseł</div>
+        </div>
+      </section>
+
+      <section class="settings-panel" data-panel="cookies">
+        <h2>Menedżer cookies</h2>
+        <p class="hint">Zarządzaj plikami cookies zapisanymi przez strony internetowe.</p>
+        <div class="row-btns">
+          <button class="btn-ghost" id="btnCookiesRefresh">Odśwież</button>
+          <button class="btn-danger" id="btnCookiesClearAll">Usuń wszystkie cookies</button>
+        </div>
+        <input type="text" id="cookieSearch" placeholder="Filtruj po domenie…" class="search-input" />
+        <div class="cookie-list" id="cookieList">
+          <div class="muted">Kliknij „Odśwież”, aby wczytać cookies</div>
+        </div>
+      </section>
+
+      <section class="settings-panel" data-panel="downloads">
+        <h2>Pobrania</h2>
+        <div class="list-box" id="settingsDownloadsList">
+          <div class="muted">Brak pobrań w tej sesji</div>
+        </div>
+      </section>
+
+      <section class="settings-panel" data-panel="advanced">
+        <h2>Zaawansowane</h2>
+        <div class="setting-row">
+          <label>Limit pamięci V8 (MB)</label>
+          <input type="number" id="advRamLimit" min="512" max="16384" step="256" value="4096" />
+        </div>
+        <div class="setting-row">
+          <label>Limit procesów renderera (0 = auto)</label>
+          <input type="number" id="advProcLimit" min="0" max="16" step="1" value="0" />
+        </div>
+        <div class="setting-row">
+          <label>Flagi Chromium (jedna na linię)</label>
+          <textarea id="advFlags" rows="6" placeholder="--disable-gpu&#10;--no-sandbox"></textarea>
+        </div>
+        <button class="btn-ghost" id="btnResetSettings">Przywróć ustawienia domyślne</button>
+        <button class="btn-ghost" id="btnOpenUserData">Otwórz folder danych</button>
+        <button class="btn-ghost" id="btnExportSettings">Eksportuj ustawienia (JSON)</button>
+        <button class="btn-ghost" id="btnImportSettings">Importuj ustawienia (JSON)</button>
+      </section>
+
+      <section class="settings-panel" data-panel="about">
+        <h2>O NEXUS</h2>
+        <p>NEXUS – nowoczesna przeglądarka dla graczy.</p>
+        <p><strong>Wersja:</strong> <span id="appVersion">1.0.1</span></p>
+        <p><strong>Silnik:</strong> Electron (Chromium)</p>
+        <p><strong>Platforma:</strong> <span id="appPlatform">—</span></p>
+        <p><strong>Architektura:</strong> <span id="appArch">—</span></p>
+        <p><strong>Rdzenie CPU:</strong> <span id="appCores">—</span></p>
+        <p><strong>RAM całkowity:</strong> <span id="appTotalRam">—</span></p>
+        <p class="hint">Wszystkie dane przechowywane są lokalnie na Twoim urządzeniu. NEXUS nie wysyła żadnych danych do chmury.</p>
+      </section>
+
+    </div>
+  </div>
+
+  <script src="settings.js"></script>
+</body>
+</html>
