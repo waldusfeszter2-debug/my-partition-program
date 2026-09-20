@@ -1,5 +1,5 @@
 /* ==========================================================================
-   NEXUS 1.0 – renderer.js  (POPRAWIONY – brak pętli motywu, sync settings)
+   NEXUS 1.0 – renderer.js  (POPRAWIONY – brak pętli motywu, sync settings, auto-update UI)
    ========================================================================== */
 const $  = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -9,7 +9,7 @@ const STATE = {
   bookmarks: [], history: [], downloads: [],
   fpsLimit: 0, fpsLimitTimer: null,
   metrics: null,
-  applyingThemeFromBroadcast: false,   // ← NOWE: flaga anty-pętla
+  applyingThemeFromBroadcast: false,
 };
 
 /* ---------- UTIL ---------- */
@@ -295,7 +295,7 @@ $('#btnSidebarDownloads')?.addEventListener('click', () => {
   openHub(); setTimeout(() => $('#downloadsList')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 400);
 });
 
-/* ---------- MOTYWY (POPRAWIONY – bez pętli) ---------- */
+/* ---------- MOTYWY ---------- */
 const THEMES = ['theme-liquid-glass', 'theme-ultra-dark', 'theme-cyberpunk', 'theme-apple-clean'];
 
 function applyTheme(key, skipSave = false) {
@@ -303,7 +303,6 @@ function applyTheme(key, skipSave = false) {
   document.body.classList.remove(...THEMES);
   document.body.classList.add('theme-' + key);
   $$('.theme-card').forEach(c => c.classList.toggle('active', c.dataset.theme === key));
-  // Zapisuj tylko jeśli NIE pochodzi z broadcastu settings:changed
   if (!skipSave) {
     window.nexus.setSettings({ theme: key });
   }
@@ -611,11 +610,10 @@ window.nexus.onDownload((d) => {
   }
 });
 
-/* POPRAWKA: settings:changed z flagą anty-pętla */
+/* ---------- SETTINGS CHANGE (z flagą anty-pętla) ---------- */
 window.nexus.onSettingsChanged((s) => {
   STATE.settings = s;
 
-  // Motyw – zastosuj BEZ zapisu (skipSave=true)
   if (s.theme) {
     STATE.applyingThemeFromBroadcast = true;
     applyTheme(s.theme, true);
@@ -624,13 +622,73 @@ window.nexus.onSettingsChanged((s) => {
 
   if (s.customCursor) document.body.setAttribute('data-cursor', s.customCursor);
 
-  // Sync przełączników Hub
   const sync = (id, val) => { const el = $('#' + id); if (el) el.checked = !!val; };
   sync('chkAdblock', s.adblock);
   sync('chkHttps', s.httpsOnly);
   sync('chkDnt', s.doNotTrack);
   sync('chkVsync', s.vsync);
   sync('chkThrottle', s.backgroundThrottling);
+});
+
+/* ---------- AUTO-UPDATE UI ---------- */
+/* UWAGA: ten blok musi być TOP-LEVEL, nie zagnieżdżony w onSettingsChanged! */
+window.nexus.onUpdateEvent(async (ev) => {
+  if (!ev || !ev.type) return;
+
+  if (ev.type === 'checking') {
+    console.log('[UPDATE] Sprawdzanie aktualizacji…');
+  }
+
+  else if (ev.type === 'available') {
+    const yes = await dialogConfirm(
+      'Dostępna aktualizacja',
+      `Nowa wersja NEXUS ${ev.version} jest dostępna.\n\nPobrać ją teraz w tle?`,
+      'Pobierz',
+      false
+    );
+    if (yes) {
+      toast('Pobieranie aktualizacji…', 'info', 4000);
+      try { await window.nexus.downloadUpdate(); }
+      catch (e) { toast('Błąd pobierania: ' + e.message, 'error', 4000); }
+    }
+  }
+
+  else if (ev.type === 'progress') {
+    const pct = (ev.percent || 0).toFixed(0);
+    const mbps = ((ev.bytesPerSecond || 0) / 1024 / 1024).toFixed(1);
+    console.log(`[UPDATE] ${pct}% (${mbps} MB/s)`);
+    // Pokazujemy toast na żywo (aktualizuje istniejący jeśli jest)
+    let el = document.querySelector('.toast-update');
+    if (!el) {
+      const c = $('#toastContainer');
+      if (c) {
+        el = document.createElement('div');
+        el.className = 'toast toast-update';
+        c.appendChild(el);
+      }
+    }
+    if (el) el.textContent = `⬇ Aktualizacja: ${pct}% (${mbps} MB/s)`;
+  }
+
+  else if (ev.type === 'downloaded') {
+    document.querySelector('.toast-update')?.remove();
+    const yes = await dialogConfirm(
+      'Aktualizacja gotowa',
+      `NEXUS ${ev.version} został pobrany.\n\nZrestartować teraz, aby zainstalować?`,
+      'Restartuj i zainstaluj',
+      false
+    );
+    if (yes) window.nexus.installUpdate();
+  }
+
+  else if (ev.type === 'not-available') {
+    console.log('[UPDATE] Masz najnowszą wersję.');
+  }
+
+  else if (ev.type === 'error') {
+    console.warn('[UPDATE] Błąd:', ev.message);
+    document.querySelector('.toast-update')?.remove();
+  }
 });
 
 /* ---------- SKRÓTY ---------- */
@@ -681,7 +739,6 @@ async function init() {
   try {
     const s = await window.nexus.getSettings();
     STATE.settings = s;
-    // WAŻNE: skipSave=true → brak pętli przy starcie
     if (s.theme) applyTheme(s.theme, true);
     if (typeof s.adblock === 'boolean') $('#chkAdblock').checked = s.adblock;
     if (typeof s.httpsOnly === 'boolean') $('#chkHttps').checked = s.httpsOnly;
