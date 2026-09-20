@@ -52,7 +52,7 @@
     },
     "publish": {
       "provider": "github",
-      "owner": "TWOJ-LOGIN",
+      "owner": "waldusfeszter2-debug",
       "repo": "nexus-browser",
       "releaseType": "release"
     }
