@@ -1,7 +1,7 @@
 {
   "name": "nexus-browser",
   "productName": "NEXUS",
-  "version": "1.1.2",
+  "version": "1.1.3",
   "description": "Premium gaming browser with Apple Liquid Glass design",
   "main": "main.js",
   "author": "NEXUS Team",
@@ -24,7 +24,9 @@
   "build": {
     "appId": "com.nexus.browser",
     "productName": "NEXUS",
-    "directories": { "output": "dist" },
+    "directories": {
+      "output": "dist"
+    },
     "files": [
       "**/*",
       "!dist/**",
@@ -33,19 +35,26 @@
       "!**/{.git,.github,.vscode}"
     ],
     "win": {
-      "target": [ { "target": "nsis", "arch": ["x64"] } ],
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ],
       "artifactName": "NEXUS-Setup-${version}.${ext}",
       "signAndEditExecutable": false
     },
     "linux": {
       "target": [
         { "target": "AppImage", "arch": ["x64"] },
-        { "target": "deb",      "arch": ["x64"] },
-        { "target": "rpm",      "arch": ["x64"] }
+        { "target": "deb", "arch": ["x64"] },
+        { "target": "rpm", "arch": ["x64"] }
       ],
       "category": "Network;WebBrowser",
       "artifactName": "NEXUS-${version}-${arch}.${ext}",
-      "maintainer": "NEXUS Team <nexus@example.com>"
+      "maintainer": "NEXUS Team <nexus@example.com>",
+      "synopsis": "NEXUS Browser - gaming browser",
+      "description": "Premium gaming browser with Apple Liquid Glass design"
+    },
+    "deb": {
+      "afterInstall": "build/linux/postinst.sh"
     },
     "nsis": {
       "oneClick": false,

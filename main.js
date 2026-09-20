@@ -1,6 +1,7 @@
 /* ==========================================================================
    NEXUS 1.1.1 – main.js
-   + Discord Rich Presence (discord-rpc.js)
+   + Discord Rich Presence
+   + Linux: Wayland / X11 auto-detect + ozone-platform-hint
    – auto-updater BEZ ZMIAN
    ========================================================================== */
 const {
@@ -37,8 +38,31 @@ const DEFAULT_SETTINGS = {
   hardwareAcceleration: true, smoothScrolling: true, backgroundThrottling: true,
   customCursor: 'default', showBookmarksBar: true,
   restoreSession: true, askDownloadPath: false,
-  discordRpc: true,                     // ← NOWE: włącz/wyłącz RPC
+  discordRpc: true,
 };
+
+/* ==========================================================================
+   LINUX: Wayland / X11 / ozone-platform-hint
+   MUSI być PRZED app.whenReady() i przed jakimkolwiek innym setupem okna.
+   Dzięki temu aplikacja sama wybierze Wayland jeśli dostępny,
+   a na starszych systemach wróci do X11. Naprawia też crashe na Ubuntu 24.04+.
+   ========================================================================== */
+if (process.platform === 'linux') {
+  // Auto-detekcja: użyj Wayland jeśli sesja go wspiera, inaczej X11
+  app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
+
+  // Dekoracje okna natywne dla Waylanda (spójny wygląd z systemem)
+  app.commandLine.appendSwitch('enable-features', 'WaylandWindowDecorations');
+
+  // Obsługa IME (klawiatury azjatyckie, dyktowanie itp.) na Waylandzie
+  app.commandLine.appendSwitch('enable-wayland-ime');
+
+  // Wymuszenie skalowania HiDPI zgodnie z ustawieniami systemu
+  app.commandLine.appendSwitch('force-device-scale-factor', '1');
+
+  // Kompatybilność z pipewire (udostępnianie ekranu, kamera w Wayland)
+  app.commandLine.appendSwitch('enable-features', 'WebRTCPipeWireCapturer');
+}
 
 /* --- ADBLOCK --- */
 const AD_HOSTS = [
@@ -594,6 +618,12 @@ ipcMain.on('ui:cursor', (_e, cursor) => { settings.customCursor = cursor; saveSe
 ipcMain.on('ui:modal-state', (_e, open) => {
   modalOpen = !!open;
   layout();
+});
+
+/* --- IPC: DISCORD RPC --- */
+ipcMain.on('rpc:set-game', (_e, game) => {
+  if (!settings.discordRpc) return;
+  discordRpc.setGame(game);
 });
 
 ipcMain.on('win:min',        () => win && win.minimize());
