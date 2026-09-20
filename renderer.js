@@ -1,5 +1,5 @@
 /* ==========================================================================
-   NEXUS 1.0 – renderer.js  (POPRAWIONY – brak pętli motywu, sync settings, auto-update UI)
+   NEXUS 1.0 – renderer.js  (POPRAWIONY – auto-update UI + brak duplikatów)
    ========================================================================== */
 const $  = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -630,34 +630,50 @@ window.nexus.onSettingsChanged((s) => {
   sync('chkThrottle', s.backgroundThrottling);
 });
 
-/* ---------- AUTO-UPDATE UI ---------- */
-/* UWAGA: ten blok musi być TOP-LEVEL, nie zagnieżdżony w onSettingsChanged! */
+/* ==========================================================================
+   AUTO-UPDATE UI  (TOP-LEVEL — nie zagnieżdżony w onSettingsChanged!)
+   ========================================================================== */
 window.nexus.onUpdateEvent(async (ev) => {
   if (!ev || !ev.type) return;
 
-  if (ev.type === 'checking') {
-    console.log('[UPDATE] Sprawdzanie aktualizacji…');
+  /* --- SYNC STANU PO STARCIE --- */
+  if (ev.type === 'state-sync') {
+    console.log('[UPDATE] state-sync:', ev.state);
+    return;
   }
 
-  else if (ev.type === 'available') {
+  /* --- SPRAWDZANIE --- */
+  if (ev.type === 'checking') {
+    console.log('[UPDATE] Sprawdzanie aktualizacji…');
+    return;
+  }
+
+  /* --- NOWA WERSJA DOSTĘPNA --- */
+  if (ev.type === 'available') {
     const yes = await dialogConfirm(
       'Dostępna aktualizacja',
-      `Nowa wersja NEXUS ${ev.version} jest dostępna.\n\nPobrać ją teraz w tle?`,
+      `Nowa wersja NEXUS ${ev.version} jest dostępna.` +
+      (ev.releaseNotes ? `\n\n${String(ev.releaseNotes).slice(0, 300)}` : '') +
+      `\n\nPobrać ją teraz w tle?`,
       'Pobierz',
       false
     );
     if (yes) {
       toast('Pobieranie aktualizacji…', 'info', 4000);
-      try { await window.nexus.downloadUpdate(); }
-      catch (e) { toast('Błąd pobierania: ' + e.message, 'error', 4000); }
+      try {
+        await window.nexus.downloadUpdate();
+      } catch (e) {
+        toast('Błąd pobierania: ' + e.message, 'error', 4000);
+      }
     }
+    return;
   }
 
-  else if (ev.type === 'progress') {
+  /* --- POSTĘP POBIERANIA --- */
+  if (ev.type === 'progress') {
     const pct = (ev.percent || 0).toFixed(0);
     const mbps = ((ev.bytesPerSecond || 0) / 1024 / 1024).toFixed(1);
     console.log(`[UPDATE] ${pct}% (${mbps} MB/s)`);
-    // Pokazujemy toast na żywo (aktualizuje istniejący jeśli jest)
     let el = document.querySelector('.toast-update');
     if (!el) {
       const c = $('#toastContainer');
@@ -668,9 +684,11 @@ window.nexus.onUpdateEvent(async (ev) => {
       }
     }
     if (el) el.textContent = `⬇ Aktualizacja: ${pct}% (${mbps} MB/s)`;
+    return;
   }
 
-  else if (ev.type === 'downloaded') {
+  /* --- POBRANE — GOTOWE DO INSTALACJI --- */
+  if (ev.type === 'downloaded') {
     document.querySelector('.toast-update')?.remove();
     const yes = await dialogConfirm(
       'Aktualizacja gotowa',
@@ -679,15 +697,37 @@ window.nexus.onUpdateEvent(async (ev) => {
       false
     );
     if (yes) window.nexus.installUpdate();
+    return;
   }
 
-  else if (ev.type === 'not-available') {
+  /* --- BRAK NOWEJ WERSJI --- */
+  if (ev.type === 'not-available') {
     console.log('[UPDATE] Masz najnowszą wersję.');
+    return;
   }
 
-  else if (ev.type === 'error') {
+  /* --- BŁĄD --- */
+  if (ev.type === 'error') {
     console.warn('[UPDATE] Błąd:', ev.message);
     document.querySelector('.toast-update')?.remove();
+    return;
+  }
+});
+
+/* ==========================================================================
+   MANUAL UPDATE CHECK — Ctrl+Shift+U
+   ========================================================================== */
+document.addEventListener('keydown', async (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'u') {
+    e.preventDefault();
+    try {
+      const r = await window.nexus.checkForUpdates();
+      console.log('[MANUAL CHECK]', r);
+      if (r.ok) toast('Sprawdzam aktualizacje…', 'info', 2000);
+      else toast('Błąd: ' + (r.error || 'nieznany'), 'error', 3500);
+    } catch (err) {
+      toast('Błąd: ' + err.message, 'error', 3500);
+    }
   }
 });
 
