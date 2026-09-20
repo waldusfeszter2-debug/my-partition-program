@@ -770,6 +770,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'F11') { e.preventDefault(); window.nexus.winFullscreen(); return; }
   if (e.key === 'F12') { e.preventDefault(); window.nexus.openDevTools(); return; }
   if (e.key === 'Escape') closeFind();
+  if (ctrl && e.shiftKey && key === 'i') { e.preventDefault(); window.nexus.openUiDevTools(); return; }
 });
 
 /* ---------- INICJALIZACJA ---------- */

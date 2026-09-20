@@ -708,6 +708,11 @@ ipcMain.on('open:settings',  () => createSettingsWindow());
 ipcMain.on('open:userdata',  () => { try { shell.openPath(USER_DIR); } catch (e) {} });
 ipcMain.on('open:downloads', () => { try { shell.openPath(app.getPath('downloads')); } catch (e) {} });
 ipcMain.on('app:restart',    () => { app.relaunch(); app.exit(0); });
+ipcMain.on('ui:devtools', () => {
+  if (win && !win.isDestroyed()) {
+    win.webContents.openDevTools({ mode: 'detach' });
+  }
+});
 
 /* --------------------------------------------------------------------------
    IPC – METRYKI

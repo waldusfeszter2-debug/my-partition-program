@@ -35,6 +35,7 @@ contextBridge.exposeInMainWorld('nexus', {
   getCurrentVersion: () => ipcRenderer.invoke('update:current-version'),
   onUpdateEvent:     (cb) => ipcRenderer.on('update:event', (_e, d) => cb(d)),
   getUpdateState: () => ipcRenderer.invoke('update:state'),
+  openUiDevTools: () => ipcRenderer.send('ui:devtools'),
 
   /* MOC */
   getMetrics:  ()  => ipcRenderer.invoke('power:metrics'),
