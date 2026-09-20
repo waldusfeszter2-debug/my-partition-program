@@ -1,7 +1,7 @@
 {
   "name": "nexus-browser",
   "productName": "NEXUS",
-  "version": "1.1.1",
+  "version": "1.1.0",
   "description": "Premium gaming browser with Apple Liquid Glass design",
   "main": "main.js",
   "author": "NEXUS Team",
@@ -9,7 +9,9 @@
   "scripts": {
     "start": "electron .",
     "build": "electron-builder --win --x64",
-    "build:publish": "electron-builder --win --x64 --publish always"
+    "build:linux": "electron-builder --linux --x64",
+    "build:all": "electron-builder --win --linux --x64",
+    "build:publish": "electron-builder --win --linux --x64 --publish always"
   },
   "dependencies": {
     "discord-rpc": "^4.0.1",
@@ -18,7 +20,7 @@
   },
   "devDependencies": {
     "electron": "^44.4.3",
-    "electron-builder": "^26.15.3"
+    "electron-builder": "^25.1.8"
   },
   "build": {
     "appId": "com.nexus.browser",
@@ -35,15 +37,23 @@
     ],
     "win": {
       "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        }
+        { "target": "nsis", "arch": ["x64"] }
       ],
       "artifactName": "NEXUS-Setup-${version}.${ext}",
       "signAndEditExecutable": false
+    },
+    "linux": {
+      "target": [
+        { "target": "AppImage", "arch": ["x64"] },
+        { "target": "deb",      "arch": ["x64"] },
+        { "target": "rpm",      "arch": ["x64"] }
+      ],
+      "category": "Network;WebBrowser",
+      "artifactName": "NEXUS-${version}-${arch}.${ext}",
+      "maintainer": "NEXUS Team <nexus@example.com>",
+      "synopsis": "NEXUS Browser – gaming browser",
+      "description": "Premium gaming browser with Apple Liquid Glass design",
+      "icon": "build/icon.png"
     },
     "nsis": {
       "oneClick": false,
