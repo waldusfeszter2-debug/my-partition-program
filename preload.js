@@ -29,13 +29,16 @@ contextBridge.exposeInMainWorld('nexus', {
   setInsets:     (i) => ipcRenderer.send('ui:insets', i),
   setHubOpen:    (o) => ipcRenderer.send('ui:hub', o),
   setCursor:     (c) => ipcRenderer.send('ui:cursor', c),
+  setModalOpen:  (o) => ipcRenderer.send('ui:modal-state', o),   // ← NOWE
+
+  /* AUTO-UPDATE */
   checkForUpdates:   () => ipcRenderer.invoke('update:check'),
   downloadUpdate:    () => ipcRenderer.invoke('update:download'),
   installUpdate:     () => ipcRenderer.invoke('update:install'),
   getCurrentVersion: () => ipcRenderer.invoke('update:current-version'),
   onUpdateEvent:     (cb) => ipcRenderer.on('update:event', (_e, d) => cb(d)),
-  getUpdateState: () => ipcRenderer.invoke('update:state'),
-  openUiDevTools: () => ipcRenderer.send('ui:devtools'),
+  getUpdateState:    () => ipcRenderer.invoke('update:state'),
+  openUiDevTools:    () => ipcRenderer.send('ui:devtools'),
 
   /* MOC */
   getMetrics:  ()  => ipcRenderer.invoke('power:metrics'),

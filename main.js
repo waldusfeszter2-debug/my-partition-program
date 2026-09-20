@@ -1,5 +1,5 @@
 /* ==========================================================================
-   NEXUS 1.0.4 – main.js  (AUTO-UPDATER NAPRAWIONY + initAutoUpdater WYWOŁANE)
+   NEXUS 1.0.8 – main.js  (poprawiony: sidebar/modal/toast over WebContentsView)
    ========================================================================== */
 const {
   app, BrowserWindow, WebContentsView, ipcMain,
@@ -10,9 +10,10 @@ const fs = require('fs');
 const os = require('os');
 const crypto = require('crypto');
 
-/* --------------------------------------------------------------------------
-   ŚCIEŻKI
-   -------------------------------------------------------------------------- */
+/* --- STAŁE LAYOUTU --- */
+const SIDEBAR_WIDTH = 56;   // ← NOWE: szerokość sidebara (zgodne z --sidebar-w w CSS)
+
+/* --- ŚCIEŻKI --- */
 const USER_DIR       = app.getPath('userData');
 const SETTINGS_PATH  = path.join(USER_DIR, 'settings.json');
 const HISTORY_PATH   = path.join(USER_DIR, 'history.json');
@@ -33,9 +34,7 @@ const DEFAULT_SETTINGS = {
   restoreSession: true, askDownloadPath: false,
 };
 
-/* --------------------------------------------------------------------------
-   ADBLOCK
-   -------------------------------------------------------------------------- */
+/* --- ADBLOCK (bez zmian) --- */
 const AD_HOSTS = [
   'doubleclick.net','googlesyndication.com','googleadservices.com','google-analytics.com',
   'googletagmanager.com','googletagservices.com','adservice.google.com','pagead2.googlesyndication.com',
@@ -82,9 +81,7 @@ const COSMETIC_CSS = `
   { display: none !important; visibility: hidden !important; height: 0 !important; }
 `;
 
-/* --------------------------------------------------------------------------
-   PERSYSTENCJA
-   -------------------------------------------------------------------------- */
+/* --- PERSYSTENCJA (bez zmian) --- */
 function readJson(file, fallback) {
   try { if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, 'utf-8')); }
   catch (e) { console.warn('[NEXUS] readJson:', file, e.message); }
@@ -111,13 +108,9 @@ function saveBookmarks() { writeJson(BM_PATH, bookmarks); }
 function saveVault()     { fs.writeFileSync(VAULT_PATH, JSON.stringify(vault, null, 2), { mode: 0o600 }); }
 function saveDownloads() { writeJson(DL_PATH, downloads.slice(-200)); }
 
-/* --------------------------------------------------------------------------
-   AES-256-GCM
-   -------------------------------------------------------------------------- */
+/* --- AES (bez zmian) --- */
 function getVaultKey() {
-  if (fs.existsSync(VAULT_KEY_PATH)) {
-    return Buffer.from(fs.readFileSync(VAULT_KEY_PATH, 'hex'), 'hex');
-  }
+  if (fs.existsSync(VAULT_KEY_PATH)) return Buffer.from(fs.readFileSync(VAULT_KEY_PATH, 'hex'), 'hex');
   const key = crypto.randomBytes(32);
   fs.writeFileSync(VAULT_KEY_PATH, key.toString('hex'), { mode: 0o600 });
   return key;
@@ -140,9 +133,7 @@ function decryptAES(enc) {
   return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8');
 }
 
-/* --------------------------------------------------------------------------
-   SWITCHES
-   -------------------------------------------------------------------------- */
+/* --- SWITCHES --- */
 if (settings.ramLimit) app.commandLine.appendSwitch('js-flags', `--max-old-space-size=${settings.ramLimit}`);
 if (settings.processLimit > 0) app.commandLine.appendSwitch('renderer-process-limit', String(settings.processLimit));
 if (!settings.vsync) {
@@ -154,9 +145,7 @@ if (settings.smoothScrolling) app.commandLine.appendSwitch('enable-smooth-scroll
 app.commandLine.appendSwitch('enable-features', 'PdfOopif');
 app.commandLine.appendSwitch('enable-accelerated-2d-canvas');
 
-/* --------------------------------------------------------------------------
-   SINGLE INSTANCE
-   -------------------------------------------------------------------------- */
+/* --- SINGLE INSTANCE --- */
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
@@ -168,9 +157,7 @@ if (!gotLock) {
   });
 }
 
-/* --------------------------------------------------------------------------
-   STAN GLOBALNY
-   -------------------------------------------------------------------------- */
+/* --- STAN GLOBALNY --- */
 let win = null;
 let settingsWindow = null;
 const tabs = new Map();
@@ -178,175 +165,83 @@ let activeTabId = null;
 let nextTabId = 1;
 let chromeHeight = 92;
 let hubWidth = 0;
+let modalOpen = false;   // ← NOWE: blokuje wyświetlanie WebContentsView gdy modal otwarty
 
-/* --------------------------------------------------------------------------
-   AUTO-UPDATER — PEŁNA, NAPRAWIONA IMPLEMENTACJA
-   -------------------------------------------------------------------------- */
+/* --- AUTO-UPDATER (bez zmian, pełna wersja) --- */
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
-
-// Konfiguracja loggera
 try {
   log.transports.file.level = 'info';
   log.transports.file.maxSize = 5 * 1024 * 1024;
   log.transports.console.level = 'info';
-} catch (e) { /* ignore */ }
+} catch (e) {}
 autoUpdater.logger = log;
-
-// Config autoUpdater
 autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = true;
 autoUpdater.allowDowngrade = false;
 autoUpdater.allowPrerelease = false;
 
-// Stan updatera
-const updateState = {
-  status: 'idle',
-  version: null,
-  progress: 0,
-  error: null,
-  lastCheck: null,
-  checkCount: 0,
-};
+const updateState = { status: 'idle', version: null, progress: 0, error: null, lastCheck: null, checkCount: 0 };
 
-// Bezpieczne wysyłanie eventów do renderera
 function sendUpdateEvent(data) {
   if (!win || win.isDestroyed()) return;
   try {
-    if (!win.webContents.isDestroyed()) {
-      win.webContents.send('update:event', data);
-    }
-  } catch (e) {
-    console.warn('[UPDATE] send failed:', e.message);
-  }
+    if (!win.webContents.isDestroyed()) win.webContents.send('update:event', data);
+  } catch (e) { console.warn('[UPDATE] send failed:', e.message); }
 }
 
-// Główna funkcja — wywoływana raz w whenReady
 function initAutoUpdater() {
-  log.info('[UPDATE] initAutoUpdater start. Version:', app.getVersion(), 'isPackaged:', app.isPackaged);
+  log.info('[UPDATE] init. Version:', app.getVersion(), 'isPackaged:', app.isPackaged);
 
-  /* ----- EVENT LISTENERS ----- */
   autoUpdater.on('checking-for-update', () => {
-    updateState.status = 'checking';
-    updateState.lastCheck = Date.now();
-    updateState.checkCount++;
-    log.info('[UPDATE] Checking for update...');
+    updateState.status = 'checking'; updateState.lastCheck = Date.now(); updateState.checkCount++;
     sendUpdateEvent({ type: 'checking' });
   });
-
   autoUpdater.on('update-available', (info) => {
-    updateState.status = 'available';
-    updateState.version = info.version;
-    log.info('[UPDATE] Update available:', info.version);
-    sendUpdateEvent({
-      type: 'available',
-      version: info.version,
-      releaseNotes: info.releaseNotes || '',
-      releaseDate: info.releaseDate || '',
-      releaseName: info.releaseName || '',
-    });
+    updateState.status = 'available'; updateState.version = info.version;
+    sendUpdateEvent({ type: 'available', version: info.version, releaseNotes: info.releaseNotes || '' });
   });
-
   autoUpdater.on('update-not-available', (info) => {
     updateState.status = 'idle';
-    log.info('[UPDATE] No update. Current is latest.');
     sendUpdateEvent({ type: 'not-available', version: info?.version || app.getVersion() });
   });
-
   autoUpdater.on('download-progress', (p) => {
-    updateState.status = 'downloading';
-    updateState.progress = p.percent;
-    sendUpdateEvent({
-      type: 'progress',
-      percent: p.percent,
-      bytesPerSecond: p.bytesPerSecond,
-      transferred: p.transferred,
-      total: p.total,
-    });
+    updateState.status = 'downloading'; updateState.progress = p.percent;
+    sendUpdateEvent({ type: 'progress', percent: p.percent, bytesPerSecond: p.bytesPerSecond, transferred: p.transferred, total: p.total });
   });
-
   autoUpdater.on('update-downloaded', (info) => {
-    updateState.status = 'downloaded';
-    updateState.version = info.version;
-    log.info('[UPDATE] Update downloaded:', info.version);
+    updateState.status = 'downloaded'; updateState.version = info.version;
     sendUpdateEvent({ type: 'downloaded', version: info.version });
   });
-
   autoUpdater.on('error', (err) => {
-    updateState.status = 'error';
-    updateState.error = err.message;
-    log.error('[UPDATE] Error:', err.message);
+    updateState.status = 'error'; updateState.error = err.message;
     sendUpdateEvent({ type: 'error', message: err.message });
   });
 
-  /* ----- IPC HANDLERY ----- */
   ipcMain.handle('update:check', async () => {
-    if (!app.isPackaged) {
-      return { ok: false, error: 'Dev mode - auto-update disabled' };
-    }
-    try {
-      const r = await autoUpdater.checkForUpdates();
-      return { ok: true, version: r?.updateInfo?.version };
-    } catch (e) {
-      return { ok: false, error: e.message };
-    }
+    if (!app.isPackaged) return { ok: false, error: 'Dev mode - auto-update disabled' };
+    try { const r = await autoUpdater.checkForUpdates(); return { ok: true, version: r?.updateInfo?.version }; }
+    catch (e) { return { ok: false, error: e.message }; }
   });
-
   ipcMain.handle('update:download', async () => {
-    try {
-      await autoUpdater.downloadUpdate();
-      return { ok: true };
-    } catch (e) {
-      return { ok: false, error: e.message };
-    }
+    try { await autoUpdater.downloadUpdate(); return { ok: true }; }
+    catch (e) { return { ok: false, error: e.message }; }
   });
-
   ipcMain.handle('update:install', () => {
-    setImmediate(() => {
-      try {
-        autoUpdater.quitAndInstall(false, true);
-      } catch (e) {
-        log.error('[UPDATE] install failed:', e);
-      }
-    });
+    setImmediate(() => { try { autoUpdater.quitAndInstall(false, true); } catch (e) { log.error(e); } });
     return { ok: true };
   });
-
-  ipcMain.handle('update:current-version', () => ({
-    version: app.getVersion(),
-    name: app.getName(),
-    isPackaged: app.isPackaged,
-  }));
-
+  ipcMain.handle('update:current-version', () => ({ version: app.getVersion(), name: app.getName(), isPackaged: app.isPackaged }));
   ipcMain.handle('update:state', () => ({ ...updateState }));
 
-  /* ----- AUTO-CHECK SCHEDULER ----- */
   if (app.isPackaged) {
-    // Pierwsze sprawdzenie po 5s (daj okno czas na wyrenderowanie)
-    setTimeout(() => {
-      log.info('[UPDATE] First check (5s after start)');
-      autoUpdater.checkForUpdates().catch(err => {
-        log.warn('[UPDATE] initial check failed:', err.message);
-      });
-    }, 5_000);
-
-    // Potem co 4 godziny
-    setInterval(() => {
-      log.info('[UPDATE] Periodic check (4h)');
-      autoUpdater.checkForUpdates().catch(err => {
-        log.warn('[UPDATE] periodic check failed:', err.message);
-      });
-    }, 4 * 60 * 60 * 1000);
-  } else {
-    log.info('[UPDATE] Dev mode - auto-check disabled (use .exe to test)');
+    setTimeout(() => autoUpdater.checkForUpdates().catch(e => log.warn('[UPDATE] initial:', e.message)), 5000);
+    setInterval(() => autoUpdater.checkForUpdates().catch(e => log.warn('[UPDATE] periodic:', e.message)), 4 * 60 * 60 * 1000);
   }
-
-  log.info('[UPDATE] Ready. Current version:', app.getVersion());
+  log.info('[UPDATE] Ready.');
 }
 
-/* --------------------------------------------------------------------------
-   OKNO GŁÓWNE
-   -------------------------------------------------------------------------- */
+/* --- OKNO GŁÓWNE --- */
 function createWindow() {
   win = new BrowserWindow({
     width: windowState.width, height: windowState.height,
@@ -380,19 +275,15 @@ function createWindow() {
   win.loadFile('index.html');
   win.once('ready-to-show', () => { win.show(); win.focus(); });
 
-  // Push initial update state after renderer is ready
   win.webContents.on('did-finish-load', () => {
     setTimeout(() => sendUpdateEvent({ type: 'state-sync', state: updateState }), 1500);
   });
 }
 
-/* --------------------------------------------------------------------------
-   OKNO USTAWIEŃ
-   -------------------------------------------------------------------------- */
+/* --- OKNO USTAWIEŃ --- */
 function createSettingsWindow() {
   if (settingsWindow && !settingsWindow.isDestroyed()) {
-    settingsWindow.show(); settingsWindow.focus(); settingsWindow.moveTop();
-    return;
+    settingsWindow.show(); settingsWindow.focus(); settingsWindow.moveTop(); return;
   }
   settingsWindow = new BrowserWindow({
     width: 900, height: 700, minWidth: 700, minHeight: 500,
@@ -409,17 +300,13 @@ function createSettingsWindow() {
     settingsWindow.show(); settingsWindow.focus(); settingsWindow.moveTop();
     settingsWindow.setAlwaysOnTop(true, 'floating');
     setTimeout(() => {
-      if (settingsWindow && !settingsWindow.isDestroyed()) {
-        settingsWindow.setAlwaysOnTop(false);
-      }
+      if (settingsWindow && !settingsWindow.isDestroyed()) settingsWindow.setAlwaysOnTop(false);
     }, 1200);
   });
   settingsWindow.on('closed', () => { settingsWindow = null; });
 }
 
-/* --------------------------------------------------------------------------
-   POBIERANIE
-   -------------------------------------------------------------------------- */
+/* --- POBIERANIE --- */
 function handleDownload(_event, item, webContents) {
   const filename = item.getFilename();
   const totalBytes = item.getTotalBytes();
@@ -428,26 +315,17 @@ function handleDownload(_event, item, webContents) {
   item.setSavePath(savePath);
 
   const id = Date.now() + '-' + Math.random().toString(36).slice(2, 8);
-  const downloadRecord = {
-    id, filename, url, total: totalBytes, received: 0,
-    state: 'progressing', savePath, ts: Date.now(), done: false,
-  };
+  const downloadRecord = { id, filename, url, total: totalBytes, received: 0, state: 'progressing', savePath, ts: Date.now(), done: false };
   downloads.push(downloadRecord);
   saveDownloads();
 
   if (win && !win.isDestroyed()) {
-    win.webContents.send('download:event', {
-      type: 'started', id, filename, url, total: totalBytes, savePath,
-    });
+    win.webContents.send('download:event', { type: 'started', id, filename, url, total: totalBytes, savePath });
   }
 
   item.on('updated', (_e, state) => {
     const rec = downloads.find(d => d.id === id);
-    if (rec) {
-      rec.received = item.getReceivedBytes();
-      rec.state = state;
-      rec.paused = item.isPaused();
-    }
+    if (rec) { rec.received = item.getReceivedBytes(); rec.state = state; rec.paused = item.isPaused(); }
     if (win && !win.isDestroyed()) {
       win.webContents.send('download:event', {
         type: 'progress', id, filename,
@@ -470,12 +348,10 @@ function handleDownload(_event, item, webContents) {
 
 function initDownloadHandler() {
   session.defaultSession.on('will-download', handleDownload);
-  console.log('[NEXUS] Download handler zainicjalizowany.');
+  console.log('[NEXUS] Download handler OK');
 }
 
-/* --------------------------------------------------------------------------
-   KARTY
-   -------------------------------------------------------------------------- */
+/* --- KARTY --- */
 function createTab(url = settings.homepage, focus = true) {
   if (!win) return null;
   const id = nextTabId++;
@@ -496,9 +372,7 @@ function createTab(url = settings.homepage, focus = true) {
   const wc = view.webContents;
 
   wc.on('page-title-updated', (_e, title) => updateTab(id, { title }));
-  wc.on('page-favicon-updated', (_e, favs) => {
-    if (favs && favs[0]) updateTab(id, { favicon: favs[0] });
-  });
+  wc.on('page-favicon-updated', (_e, favs) => { if (favs && favs[0]) updateTab(id, { favicon: favs[0] }); });
   wc.on('did-start-loading', () => updateTab(id, { loading: true }));
   wc.on('did-stop-loading', () => updateTab(id, { loading: false }));
   wc.on('did-navigate', (_e, u) => {
@@ -510,17 +384,7 @@ function createTab(url = settings.homepage, focus = true) {
     updateTab(id, { url: u });
     if (id === activeTabId) pushNavState();
   });
-
-  wc.on('did-finish-load', () => {
-    if (settings.adblock) {
-      wc.insertCSS(COSMETIC_CSS).catch(() => {});
-    }
-  });
-
-  wc.on('will-download', (_e, item) => {
-    console.log('[NEXUS] Download z karty:', item.getFilename());
-  });
-
+  wc.on('did-finish-load', () => { if (settings.adblock) wc.insertCSS(COSMETIC_CSS).catch(() => {}); });
   wc.on('render-process-gone', () => updateTab(id, { title: '⚠ Karta uległa awarii', loading: false }));
   wc.on('unresponsive', () => updateTab(id, { title: '⏳ Karta nie odpowiada' }));
   wc.on('responsive', () => updateTab(id, { title: tabs.get(id)?.title || 'Nowa karta' }));
@@ -618,14 +482,25 @@ function setActiveTab(id) {
   pushNavState();
 }
 
+/* ═════════════════════════════════════════════════════════════════════════
+   KLUCZOWA POPRAWKA: view NIE zasłania sidebara, a gdy modal otwarty —
+   jest ukryty (bounds = 0×0), żeby dialog z renderera był widoczny.
+   ═════════════════════════════════════════════════════════════════════════ */
 function layout() {
   if (!win) return;
   const [w, h] = win.getContentSize();
   const a = tabs.get(activeTabId);
   if (!a) return;
+
+  if (modalOpen) {
+    a.view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+    return;
+  }
+
   a.view.setBounds({
-    x: 0, y: chromeHeight,
-    width: Math.max(0, w - hubWidth),
+    x: SIDEBAR_WIDTH,                                          // ← było 0
+    y: chromeHeight,
+    width: Math.max(0, w - SIDEBAR_WIDTH - hubWidth),          // ← uwzględnia sidebar
     height: Math.max(0, h - chromeHeight),
   });
 }
@@ -664,9 +539,7 @@ function addHistory(url, title) {
   saveHistory();
 }
 
-/* --------------------------------------------------------------------------
-   IPC – ZAKŁADKI
-   -------------------------------------------------------------------------- */
+/* --- IPC: ZAKŁADKI --- */
 ipcMain.handle('tab:create',    (_e, url) => createTab(url || settings.homepage));
 ipcMain.handle('tab:close',     (_e, id)  => closeTab(id));
 ipcMain.handle('tab:activate',  (_e, id)  => setActiveTab(id));
@@ -690,9 +563,7 @@ ipcMain.handle('tab:close-right', () => {
   for (let i = ids.length - 1; i > idx; i--) closeTab(ids[i]);
 });
 
-/* --------------------------------------------------------------------------
-   IPC – OKNO
-   -------------------------------------------------------------------------- */
+/* --- IPC: OKNO / UI --- */
 ipcMain.on('ui:insets', (_e, { top, right }) => {
   if (typeof top === 'number')   chromeHeight = top;
   if (typeof right === 'number') hubWidth = right;
@@ -700,6 +571,13 @@ ipcMain.on('ui:insets', (_e, { top, right }) => {
 });
 ipcMain.on('ui:hub', (_e, open) => { hubWidth = open ? 380 : 0; layout(); });
 ipcMain.on('ui:cursor', (_e, cursor) => { settings.customCursor = cursor; saveSettings(); });
+
+/* ═══ NOWE: IPC do ukrywania view podczas otwartego modala ═══ */
+ipcMain.on('ui:modal-state', (_e, open) => {
+  modalOpen = !!open;
+  layout();
+});
+
 ipcMain.on('win:min',        () => win && win.minimize());
 ipcMain.on('win:max',        () => { if (win) win.isMaximized() ? win.unmaximize() : win.maximize(); });
 ipcMain.on('win:close',      () => win && win.close());
@@ -708,20 +586,12 @@ ipcMain.on('open:settings',  () => createSettingsWindow());
 ipcMain.on('open:userdata',  () => { try { shell.openPath(USER_DIR); } catch (e) {} });
 ipcMain.on('open:downloads', () => { try { shell.openPath(app.getPath('downloads')); } catch (e) {} });
 ipcMain.on('app:restart',    () => { app.relaunch(); app.exit(0); });
-ipcMain.on('ui:devtools', () => {
-  if (win && !win.isDestroyed()) {
-    win.webContents.openDevTools({ mode: 'detach' });
-  }
-});
+ipcMain.on('ui:devtools',    () => { if (win && !win.isDestroyed()) win.webContents.openDevTools({ mode: 'detach' }); });
 
-/* --------------------------------------------------------------------------
-   IPC – METRYKI
-   -------------------------------------------------------------------------- */
+/* --- IPC: METRYKI --- */
 ipcMain.handle('power:metrics', () => {
   const metrics = app.getAppMetrics();
-  let cpu = 0, ramMB = 0;
-  let mainRam = 0, rendererRam = 0, gpuRam = 0, utilityRam = 0;
-  let procCount = 0;
+  let cpu = 0, ramMB = 0, mainRam = 0, rendererRam = 0, gpuRam = 0, utilityRam = 0, procCount = 0;
   for (const m of metrics) {
     const procRam = ((m.memory && m.memory.workingSetSize) || 0) / 1024;
     ramMB += procRam;
@@ -740,8 +610,7 @@ ipcMain.handle('power:metrics', () => {
     processes: procCount,
     totalMem: os.totalmem() / 1024 / 1024, freeMem: os.freemem() / 1024 / 1024,
     cores: os.cpus().length, platform: process.platform, arch: process.arch,
-    nodeVersion: process.versions.node,
-    electronVersion: process.versions.electron,
+    nodeVersion: process.versions.node, electronVersion: process.versions.electron,
     chromeVersion: process.versions.chrome,
     uptime: process.uptime(), adblockCount: blockedCount,
   };
@@ -757,8 +626,7 @@ ipcMain.handle('power:clean', async () => {
   } catch (e) {}
   for (const [id, t] of tabs) {
     if (id === activeTabId) continue;
-    try { t.view.webContents.setBackgroundThrottling(true); t.frozen = true; frozen++; }
-    catch (e) {}
+    try { t.view.webContents.setBackgroundThrottling(true); t.frozen = true; frozen++; } catch (e) {}
   }
   broadcastTabList();
   return { freedMB: Math.round(freedMB), frozen };
@@ -779,9 +647,7 @@ ipcMain.handle('power:apply', (_e, patch) => {
   return { ok: true, settings };
 });
 
-/* --------------------------------------------------------------------------
-   IPC – NARZĘDZIA STRONY
-   -------------------------------------------------------------------------- */
+/* --- IPC: NARZĘDZIA STRONY --- */
 const ZOOM_STEPS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5];
 
 ipcMain.handle('page:zoom', (_e, dir) => {
@@ -802,19 +668,9 @@ ipcMain.handle('page:zoom', (_e, dir) => {
   return { ok: true, zoom: next };
 });
 
-ipcMain.handle('page:find', (_e, q) => {
-  const t = tabs.get(activeTabId); if (!t || !q) return { ok: false };
-  t.view.webContents.findInPage(q); return { ok: true };
-});
-ipcMain.handle('page:find-stop', () => {
-  const t = tabs.get(activeTabId); if (t) t.view.webContents.stopFindInPage('clearSelection');
-  return { ok: true };
-});
-ipcMain.handle('page:print', async () => {
-  const t = tabs.get(activeTabId); if (!t) return { ok: false };
-  try { await t.view.webContents.print({ silent: false }); return { ok: true }; }
-  catch (e) { return { ok: false, error: e.message }; }
-});
+ipcMain.handle('page:find', (_e, q) => { const t = tabs.get(activeTabId); if (!t || !q) return { ok: false }; t.view.webContents.findInPage(q); return { ok: true }; });
+ipcMain.handle('page:find-stop', () => { const t = tabs.get(activeTabId); if (t) t.view.webContents.stopFindInPage('clearSelection'); return { ok: true }; });
+ipcMain.handle('page:print', async () => { const t = tabs.get(activeTabId); if (!t) return { ok: false }; try { await t.view.webContents.print({ silent: false }); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; } });
 ipcMain.handle('page:screenshot', async () => {
   const t = tabs.get(activeTabId); if (!t) return { ok: false };
   try {
@@ -828,32 +684,15 @@ ipcMain.handle('page:save', async () => {
   const t = tabs.get(activeTabId); if (!t) return { ok: false };
   try {
     const html = await t.view.webContents.executeJavaScript('document.documentElement.outerHTML', true);
-    const r = await dialog.showSaveDialog(win, {
-      defaultPath: (t.title || 'strona') + '.html',
-      filters: [{ name: 'HTML', extensions: ['html'] }],
-    });
+    const r = await dialog.showSaveDialog(win, { defaultPath: (t.title || 'strona') + '.html', filters: [{ name: 'HTML', extensions: ['html'] }] });
     if (r.canceled) return { ok: false };
     fs.writeFileSync(r.filePath, html);
     return { ok: true, path: r.filePath };
   } catch (e) { return { ok: false, error: e.message }; }
 });
-ipcMain.handle('page:view-source', () => {
-  const t = tabs.get(activeTabId); if (!t) return { ok: false };
-  createTab('view-source:' + t.view.webContents.getURL());
-  return { ok: true };
-});
-ipcMain.handle('page:devtools', () => {
-  const t = tabs.get(activeTabId); if (!t) return { ok: false };
-  t.view.webContents.openDevTools({ mode: 'detach' });
-  return { ok: true };
-});
-ipcMain.handle('page:clear-data', async () => {
-  try {
-    await session.defaultSession.clearStorageData();
-    await session.defaultSession.clearCache();
-    return { ok: true };
-  } catch (e) { return { ok: false, error: e.message }; }
-});
+ipcMain.handle('page:view-source', () => { const t = tabs.get(activeTabId); if (!t) return { ok: false }; createTab('view-source:' + t.view.webContents.getURL()); return { ok: true }; });
+ipcMain.handle('page:devtools', () => { const t = tabs.get(activeTabId); if (!t) return { ok: false }; t.view.webContents.openDevTools({ mode: 'detach' }); return { ok: true }; });
+ipcMain.handle('page:clear-data', async () => { try { await session.defaultSession.clearStorageData(); await session.defaultSession.clearCache(); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; } });
 
 ipcMain.handle('page:reading-mode', async () => {
   const t = tabs.get(activeTabId); if (!t) return { ok: false };
@@ -879,16 +718,11 @@ ipcMain.handle('page:reading-mode', async () => {
   } catch (e) { return { ok: false, error: e.message }; }
 });
 
-/* --------------------------------------------------------------------------
-   IPC – PDF
-   -------------------------------------------------------------------------- */
+/* --- IPC: PDF --- */
 ipcMain.handle('file:open-pdf', async () => {
   const r = await dialog.showOpenDialog(win, {
     properties: ['openFile'],
-    filters: [
-      { name: 'PDF', extensions: ['pdf'] },
-      { name: 'Wszystkie pliki', extensions: ['*'] },
-    ],
+    filters: [{ name: 'PDF', extensions: ['pdf'] }, { name: 'Wszystkie pliki', extensions: ['*'] }],
   });
   if (r.canceled || !r.filePaths.length) return { ok: false };
   const url = 'file://' + r.filePaths[0].replace(/\\/g, '/');
@@ -896,40 +730,23 @@ ipcMain.handle('file:open-pdf', async () => {
   return { ok: true, url };
 });
 
-/* --------------------------------------------------------------------------
-   IPC – USTAWIENIA
-   -------------------------------------------------------------------------- */
+/* --- IPC: USTAWIENIA --- */
 function broadcastSettings() {
   for (const w of BrowserWindow.getAllWindows()) {
     if (!w.isDestroyed()) w.webContents.send('settings:changed', settings);
   }
 }
 ipcMain.handle('settings:get', () => ({ ...settings }));
-ipcMain.handle('settings:set', (_e, patch) => {
-  Object.assign(settings, patch || {});
-  saveSettings();
-  broadcastSettings();
-  return { ok: true, settings };
-});
-ipcMain.handle('settings:reset', () => {
-  settings = { ...DEFAULT_SETTINGS };
-  saveSettings();
-  broadcastSettings();
-  return { ok: true, settings };
-});
+ipcMain.handle('settings:set', (_e, patch) => { Object.assign(settings, patch || {}); saveSettings(); broadcastSettings(); return { ok: true, settings }; });
+ipcMain.handle('settings:reset', () => { settings = { ...DEFAULT_SETTINGS }; saveSettings(); broadcastSettings(); return { ok: true, settings }; });
 
-/* --------------------------------------------------------------------------
-   IPC – HISTORIA / BOOKMARKS
-   -------------------------------------------------------------------------- */
+/* --- IPC: HISTORIA / BOOKMARKS --- */
 ipcMain.handle('history:get', (_e, q) => {
   if (!q) return history.slice(-200).reverse();
   const query = q.toLowerCase();
-  return history.filter(h =>
-    h.url.toLowerCase().includes(query) || (h.title || '').toLowerCase().includes(query)
-  ).slice(-200).reverse();
+  return history.filter(h => h.url.toLowerCase().includes(query) || (h.title || '').toLowerCase().includes(query)).slice(-200).reverse();
 });
 ipcMain.handle('history:clear', () => { history = []; saveHistory(); return { ok: true }; });
-
 ipcMain.handle('bm:list', () => bookmarks.slice());
 ipcMain.handle('bm:add', (_e, { url, title }) => {
   if (!url) return { ok: false };
@@ -938,23 +755,15 @@ ipcMain.handle('bm:add', (_e, { url, title }) => {
   saveBookmarks();
   return { ok: true };
 });
-ipcMain.handle('bm:remove', (_e, url) => {
-  bookmarks = bookmarks.filter(b => b.url !== url);
-  saveBookmarks(); return { ok: true };
-});
+ipcMain.handle('bm:remove', (_e, url) => { bookmarks = bookmarks.filter(b => b.url !== url); saveBookmarks(); return { ok: true }; });
 ipcMain.handle('bm:has', (_e, url) => bookmarks.some(b => b.url === url));
 
-/* --------------------------------------------------------------------------
-   IPC – HASŁA
-   -------------------------------------------------------------------------- */
-ipcMain.handle('pw:list', () =>
-  vault.map(p => ({ id: p.id, site: p.site, username: p.username, category: p.category, created: p.created, updated: p.updated }))
-);
+/* --- IPC: HASŁA --- */
+ipcMain.handle('pw:list', () => vault.map(p => ({ id: p.id, site: p.site, username: p.username, category: p.category, created: p.created, updated: p.updated })));
 ipcMain.handle('pw:reveal', (_e, id) => {
   const entry = vault.find(p => p.id === id);
   if (!entry || !entry.password) return { ok: false };
-  try { return { ok: true, password: decryptAES(entry.password) }; }
-  catch (e) { return { ok: false, error: e.message }; }
+  try { return { ok: true, password: decryptAES(entry.password) }; } catch (e) { return { ok: false, error: e.message }; }
 });
 ipcMain.handle('pw:add', (_e, { site, username, password, category }) => {
   if (!site || !password) return { ok: false, error: 'brak danych' };
@@ -978,24 +787,18 @@ ipcMain.handle('pw:update', (_e, { id, data }) => {
 });
 ipcMain.handle('pw:search', (_e, q) => {
   const query = (q || '').toLowerCase();
-  return vault.filter(p =>
-    p.site.toLowerCase().includes(query) || (p.username || '').toLowerCase().includes(query)
-  ).map(p => ({ id: p.id, site: p.site, username: p.username, category: p.category, updated: p.updated }));
+  return vault.filter(p => p.site.toLowerCase().includes(query) || (p.username || '').toLowerCase().includes(query))
+    .map(p => ({ id: p.id, site: p.site, username: p.username, category: p.category, updated: p.updated }));
 });
 
-/* --------------------------------------------------------------------------
-   IPC – COOKIES
-   -------------------------------------------------------------------------- */
+/* --- IPC: COOKIES --- */
 ipcMain.handle('ck:list', async (_e, filter) => {
   try {
     const cookies = await session.defaultSession.cookies.get(filter || {});
     return cookies.map(c => ({ name: c.name, value: c.value, domain: c.domain, path: c.path, secure: c.secure, httpOnly: c.httpOnly, session: c.session, expirationDate: c.expirationDate }));
   } catch (e) { return []; }
 });
-ipcMain.handle('ck:remove', async (_e, details) => {
-  try { await session.defaultSession.cookies.remove(details.url, details.name); return { ok: true }; }
-  catch (e) { return { ok: false, error: e.message }; }
-});
+ipcMain.handle('ck:remove', async (_e, details) => { try { await session.defaultSession.cookies.remove(details.url, details.name); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; } });
 ipcMain.handle('ck:clear-all', async () => {
   try {
     const cookies = await session.defaultSession.cookies.get({});
@@ -1008,18 +811,14 @@ ipcMain.handle('ck:clear-all', async () => {
   } catch (e) { return { ok: false, error: e.message }; }
 });
 
-/* --------------------------------------------------------------------------
-   IPC – DOWNLOADS
-   -------------------------------------------------------------------------- */
+/* --- IPC: DOWNLOADS --- */
 ipcMain.handle('dl:list', () => downloads.slice().reverse());
 ipcMain.handle('dl:clear', () => { downloads = []; saveDownloads(); return { ok: true }; });
 ipcMain.handle('dl:open-folder', () => { shell.openPath(app.getPath('downloads')); return { ok: true }; });
 ipcMain.handle('dl:open-file', (_e, filePath) => { try { shell.openPath(filePath); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; } });
 ipcMain.handle('dl:reveal-file', (_e, filePath) => { try { shell.showItemInFolder(filePath); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; } });
 
-/* --------------------------------------------------------------------------
-   IPC – ROZSZERZENIA
-   -------------------------------------------------------------------------- */
+/* --- IPC: ROZSZERZENIA --- */
 const EXT_DIR = path.join(USER_DIR, 'Extensions');
 if (!fs.existsSync(EXT_DIR)) fs.mkdirSync(EXT_DIR, { recursive: true });
 
@@ -1030,7 +829,6 @@ async function loadSavedExtensions() {
       if (!e.isDirectory()) continue;
       try {
         await session.defaultSession.extensions.loadExtension(path.join(EXT_DIR, e.name), { allowFileAccess: true });
-        console.log('[NEXUS] Rozszerzenie załadowane:', e.name);
       } catch (err) { console.warn('[NEXUS] Błąd ładowania:', e.name, err.message); }
     }
   } catch (e) { console.warn('[NEXUS] Błąd skanowania rozszerzeń:', e.message); }
@@ -1038,8 +836,10 @@ async function loadSavedExtensions() {
 
 ipcMain.handle('ext:list', () => {
   try {
-    const exts = session.defaultSession.extensions.getAllExtensions();
-    return exts.map(e => ({ id: e.id, name: e.name, version: e.version, path: e.path, enabled: e.enabled, description: e.manifest?.description || '', permissions: e.manifest?.permissions || [] }));
+    return session.defaultSession.extensions.getAllExtensions().map(e => ({
+      id: e.id, name: e.name, version: e.version, path: e.path, enabled: e.enabled,
+      description: e.manifest?.description || '', permissions: e.manifest?.permissions || [],
+    }));
   } catch (e) { return []; }
 });
 ipcMain.handle('ext:load', async () => {
@@ -1053,18 +853,9 @@ ipcMain.handle('ext:load', async () => {
     return { ok: true, name: path.basename(folder) };
   } catch (e) { return { ok: false, error: e.message }; }
 });
-ipcMain.handle('ext:remove', async (_e, id) => {
-  try { await session.defaultSession.extensions.removeExtension(id); return { ok: true }; }
-  catch (e) { return { ok: false, error: e.message }; }
-});
-ipcMain.handle('ext:enable', (_e, id) => {
-  try { const ext = session.defaultSession.extensions.getExtension(id); if (ext) ext.enable(); return { ok: true }; }
-  catch (e) { return { ok: false, error: e.message }; }
-});
-ipcMain.handle('ext:disable', (_e, id) => {
-  try { const ext = session.defaultSession.extensions.getExtension(id); if (ext) ext.disable(); return { ok: true }; }
-  catch (e) { return { ok: false, error: e.message }; }
-});
+ipcMain.handle('ext:remove', async (_e, id) => { try { await session.defaultSession.extensions.removeExtension(id); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; } });
+ipcMain.handle('ext:enable', (_e, id) => { try { const ext = session.defaultSession.extensions.getExtension(id); if (ext) ext.enable(); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; } });
+ipcMain.handle('ext:disable', (_e, id) => { try { const ext = session.defaultSession.extensions.getExtension(id); if (ext) ext.disable(); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; } });
 ipcMain.handle('ext:open-store', () => { shell.openExternal('https://chromewebstore.google.com/'); return { ok: true }; });
 ipcMain.handle('ext:reload', async () => {
   try {
@@ -1075,18 +866,12 @@ ipcMain.handle('ext:reload', async () => {
   } catch (e) { return { ok: false, error: e.message }; }
 });
 
-/* --------------------------------------------------------------------------
-   START
-   -------------------------------------------------------------------------- */
+/* --- START --- */
 app.whenReady().then(async () => {
-  /* Adblock + HTTPS-only + counter */
   session.defaultSession.webRequest.onBeforeRequest((details, cb) => {
     const u = details.url;
     if (settings.adblock) {
-      try {
-        const host = new URL(u).hostname;
-        if (isAdHost(host)) { blockedCount++; return cb({ cancel: true }); }
-      } catch (e) {}
+      try { const host = new URL(u).hostname; if (isAdHost(host)) { blockedCount++; return cb({ cancel: true }); } } catch (e) {}
     }
     if (settings.httpsOnly && u.startsWith('http://') && !u.startsWith('http://localhost')) {
       return cb({ redirectURL: u.replace('http://', 'https://') });
@@ -1104,17 +889,10 @@ app.whenReady().then(async () => {
   initDownloadHandler();
   await loadSavedExtensions();
   createWindow();
-
-  // ⭐⭐⭐ TO BYŁO POMINIĘTE — TERAZ AUTO-UPDATER DZIAŁA ⭐⭐⭐
   initAutoUpdater();
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-  });
+  app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
-});
-
+app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 process.on('uncaughtException', err => console.error('[NEXUS] Nieoczekiwany błąd:', err));

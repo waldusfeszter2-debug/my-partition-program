@@ -1,5 +1,7 @@
 /* ==========================================================================
-   NEXUS 1.0 – renderer.js  (POPRAWIONY – auto-update UI + brak duplikatów)
+   NEXUS 1.0.8 – renderer.js
+   - modal ukrywa WebContentsView (setModalOpen)
+   - Ctrl+Tab naprawione (e.key, nie e.key.toLowerCase())
    ========================================================================== */
 const $  = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -58,7 +60,7 @@ function toast(msg, type = 'info', duration = 2800) {
   c.appendChild(el);
   setTimeout(() => {
     el.style.opacity = '0';
-    el.style.transform = 'translateY(20px)';
+    el.style.transform = 'translateY(-10px)';
     setTimeout(() => el.remove(), 300);
   }, duration);
 }
@@ -94,12 +96,14 @@ function openDialog({ title, body, buttons, onMount }) {
       dialogEls.footer.appendChild(b);
     });
     dialogEls.overlay.hidden = false;
+    window.nexus.setModalOpen(true);   // ← ukryj WebContentsView
     if (onMount) onMount(dialogEls.body);
   });
 }
 function closeDialog(value) {
   if (!dialogEls.overlay.hidden) {
     dialogEls.overlay.hidden = true;
+    window.nexus.setModalOpen(false);  // ← pokaż WebContentsView
     if (dialogResolver) { const r = dialogResolver; dialogResolver = null; r(value); }
   }
 }
@@ -189,7 +193,7 @@ function showTabMenu(e, tab) {
   closeCtx();
   ctxEl = document.createElement('div');
   ctxEl.style.cssText = `
-    position:fixed;left:${e.clientX}px;top:${e.clientY}px;z-index:1000;
+    position:fixed;left:${e.clientX}px;top:${e.clientY}px;z-index:1200;
     background:var(--glass-2);backdrop-filter:blur(var(--blur));
     -webkit-backdrop-filter:blur(var(--blur));
     border:1px solid var(--border);border-radius:14px;padding:6px;
@@ -260,8 +264,6 @@ $('#wcClose')?.addEventListener('click', () => window.nexus.winClose());
 /* ---------- USTAWIENIA ---------- */
 function openSettings() { window.nexus.openSettings(); }
 $('#btnSettingsTop')?.addEventListener('click', openSettings);
-$('#btnSidebarSettings')?.addEventListener('click', openSettings);
-$('#btnOpenSettingsHub')?.addEventListener('click', openSettings);
 
 /* ---------- HUB ---------- */
 const hub = $('#hub');
@@ -303,9 +305,7 @@ function applyTheme(key, skipSave = false) {
   document.body.classList.remove(...THEMES);
   document.body.classList.add('theme-' + key);
   $$('.theme-card').forEach(c => c.classList.toggle('active', c.dataset.theme === key));
-  if (!skipSave) {
-    window.nexus.setSettings({ theme: key });
-  }
+  if (!skipSave) window.nexus.setSettings({ theme: key });
 }
 
 $$('.theme-card').forEach(card => card.addEventListener('click', () => applyTheme(card.dataset.theme, false)));
@@ -610,18 +610,15 @@ window.nexus.onDownload((d) => {
   }
 });
 
-/* ---------- SETTINGS CHANGE (z flagą anty-pętla) ---------- */
+/* ---------- SETTINGS CHANGE ---------- */
 window.nexus.onSettingsChanged((s) => {
   STATE.settings = s;
-
   if (s.theme) {
     STATE.applyingThemeFromBroadcast = true;
     applyTheme(s.theme, true);
     STATE.applyingThemeFromBroadcast = false;
   }
-
   if (s.customCursor) document.body.setAttribute('data-cursor', s.customCursor);
-
   const sync = (id, val) => { const el = $('#' + id); if (el) el.checked = !!val; };
   sync('chkAdblock', s.adblock);
   sync('chkHttps', s.httpsOnly);
@@ -630,25 +627,13 @@ window.nexus.onSettingsChanged((s) => {
   sync('chkThrottle', s.backgroundThrottling);
 });
 
-/* ==========================================================================
-   AUTO-UPDATE UI  (TOP-LEVEL — nie zagnieżdżony w onSettingsChanged!)
-   ========================================================================== */
+/* ---------- AUTO-UPDATE UI ---------- */
 window.nexus.onUpdateEvent(async (ev) => {
   if (!ev || !ev.type) return;
 
-  /* --- SYNC STANU PO STARCIE --- */
-  if (ev.type === 'state-sync') {
-    console.log('[UPDATE] state-sync:', ev.state);
-    return;
-  }
+  if (ev.type === 'state-sync') { console.log('[UPDATE] state-sync:', ev.state); return; }
+  if (ev.type === 'checking') { console.log('[UPDATE] Sprawdzanie aktualizacji…'); return; }
 
-  /* --- SPRAWDZANIE --- */
-  if (ev.type === 'checking') {
-    console.log('[UPDATE] Sprawdzanie aktualizacji…');
-    return;
-  }
-
-  /* --- NOWA WERSJA DOSTĘPNA --- */
   if (ev.type === 'available') {
     const yes = await dialogConfirm(
       'Dostępna aktualizacja',
@@ -660,34 +645,24 @@ window.nexus.onUpdateEvent(async (ev) => {
     );
     if (yes) {
       toast('Pobieranie aktualizacji…', 'info', 4000);
-      try {
-        await window.nexus.downloadUpdate();
-      } catch (e) {
-        toast('Błąd pobierania: ' + e.message, 'error', 4000);
-      }
+      try { await window.nexus.downloadUpdate(); }
+      catch (e) { toast('Błąd pobierania: ' + e.message, 'error', 4000); }
     }
     return;
   }
 
-  /* --- POSTĘP POBIERANIA --- */
   if (ev.type === 'progress') {
     const pct = (ev.percent || 0).toFixed(0);
     const mbps = ((ev.bytesPerSecond || 0) / 1024 / 1024).toFixed(1);
-    console.log(`[UPDATE] ${pct}% (${mbps} MB/s)`);
     let el = document.querySelector('.toast-update');
     if (!el) {
       const c = $('#toastContainer');
-      if (c) {
-        el = document.createElement('div');
-        el.className = 'toast toast-update';
-        c.appendChild(el);
-      }
+      if (c) { el = document.createElement('div'); el.className = 'toast toast-update'; c.appendChild(el); }
     }
     if (el) el.textContent = `⬇ Aktualizacja: ${pct}% (${mbps} MB/s)`;
     return;
   }
 
-  /* --- POBRANE — GOTOWE DO INSTALACJI --- */
   if (ev.type === 'downloaded') {
     document.querySelector('.toast-update')?.remove();
     const yes = await dialogConfirm(
@@ -700,13 +675,7 @@ window.nexus.onUpdateEvent(async (ev) => {
     return;
   }
 
-  /* --- BRAK NOWEJ WERSJI --- */
-  if (ev.type === 'not-available') {
-    console.log('[UPDATE] Masz najnowszą wersję.');
-    return;
-  }
-
-  /* --- BŁĄD --- */
+  if (ev.type === 'not-available') { console.log('[UPDATE] Masz najnowszą wersję.'); return; }
   if (ev.type === 'error') {
     console.warn('[UPDATE] Błąd:', ev.message);
     document.querySelector('.toast-update')?.remove();
@@ -714,20 +683,15 @@ window.nexus.onUpdateEvent(async (ev) => {
   }
 });
 
-/* ==========================================================================
-   MANUAL UPDATE CHECK — Ctrl+Shift+U
-   ========================================================================== */
+/* ---------- MANUAL UPDATE CHECK — Ctrl+Shift+U ---------- */
 document.addEventListener('keydown', async (e) => {
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'u') {
     e.preventDefault();
     try {
       const r = await window.nexus.checkForUpdates();
-      console.log('[MANUAL CHECK]', r);
       if (r.ok) toast('Sprawdzam aktualizacje…', 'info', 2000);
       else toast('Błąd: ' + (r.error || 'nieznany'), 'error', 3500);
-    } catch (err) {
-      toast('Błąd: ' + err.message, 'error', 3500);
-    }
+    } catch (err) { toast('Błąd: ' + err.message, 'error', 3500); }
   }
 });
 
@@ -758,6 +722,8 @@ document.addEventListener('keydown', (e) => {
     if (STATE.tabs[idx]) window.nexus.activateTab(STATE.tabs[idx].id);
     return;
   }
+
+  // ⚠ POPRAWKA: e.key === 'Tab' (nie key === 'Tab' po toLowerCase)
   if (ctrl && e.key === 'Tab') {
     e.preventDefault();
     if (!STATE.tabs.length) return;

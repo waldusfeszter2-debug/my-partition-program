@@ -1,5 +1,5 @@
 /* ============================================================
-   NEXUS 1.0 – Apple Liquid Glass + Custom Cursors
+   NEXUS 1.0.8 – styles.css
    ============================================================ */
 :root {
   --opacity: .72;
@@ -70,11 +70,8 @@ body.theme-apple-clean {
 body.no-accent { --accent-1: #7c8797; --accent-2: #7c8797; --accent-3: #7c8797; }
 body.no-anim * { transition: none !important; animation: none !important; }
 
-/* ============================================================
-   NIESTANDARDOWE KURORY
-   ============================================================ */
+/* ---------- KURORY ---------- */
 body { cursor: default; }
-
 body[data-cursor="nexus-arrow"] {
   cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path d="M4 2 L20 12 L13 13 L16 20 L14 21 L11 14 L5 19 Z" fill="%235856d6" stroke="white" stroke-width="1.2"/></svg>') 4 2, auto;
 }
@@ -93,16 +90,10 @@ body[data-cursor="minimal"] {
 body[data-cursor="default"] { cursor: default; }
 
 button, .side-btn, .icon-btn, .tab, .theme-card, a,
-input[type=range], .list-item, .hub-toggle {
-  cursor: inherit;
-}
-button:hover, .icon-btn:hover, .side-btn:hover, .theme-card:hover, .hub-toggle:hover {
-  cursor: inherit;
-}
+input[type=range], .list-item, .hub-toggle { cursor: inherit; }
+button:hover, .icon-btn:hover, .side-btn:hover, .theme-card:hover, .hub-toggle:hover { cursor: inherit; }
 
-/* ============================================================
-   RESET / BASE
-   ============================================================ */
+/* ---------- RESET ---------- */
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; }
 body {
@@ -113,9 +104,7 @@ body {
   user-select: none;
 }
 
-/* ============================================================
-   AURORA
-   ============================================================ */
+/* ---------- AURORA ---------- */
 .aurora { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
 .blob { position: absolute; border-radius: 50%; filter: blur(120px); opacity: .55; will-change: transform; transform: translate3d(0,0,0); }
 .b1 { width: 560px; height: 560px; background: var(--accent-1); top: -180px; left: -160px; animation: drift 24s ease-in-out infinite; }
@@ -126,9 +115,7 @@ body {
   50% { transform: translate3d(70px, -50px, 0) scale(1.18); }
 }
 
-/* ============================================================
-   APP LAYOUT
-   ============================================================ */
+/* ---------- APP LAYOUT ---------- */
 .app { position: relative; z-index: 2; display: flex; height: 100vh; width: 100vw; }
 .sidebar {
   width: var(--sidebar-w); flex: 0 0 var(--sidebar-w);
@@ -152,9 +139,7 @@ body {
 
 .main { flex: 1; display: flex; flex-direction: column; position: relative; min-width: 0; }
 
-/* ============================================================
-   CHROME
-   ============================================================ */
+/* ---------- CHROME ---------- */
 .chrome {
   height: var(--chrome-h); display: flex; flex-direction: column;
   background: var(--glass);
@@ -257,9 +242,7 @@ body {
 
 .content-spacer { flex: 1; }
 
-/* ============================================================
-   FIND BAR
-   ============================================================ */
+/* ---------- FIND BAR ---------- */
 .find-bar {
   position: absolute; top: 12px; right: 20px; z-index: 80;
   display: none; align-items: center; gap: 8px;
@@ -274,9 +257,7 @@ body {
 .find-bar[data-open="true"] { display: flex; }
 .find-bar input { background: transparent; border: 0; outline: 0; color: var(--text); font-size: 13px; width: 220px; padding: 4px 6px; }
 
-/* ============================================================
-   HUB
-   ============================================================ */
+/* ---------- HUB ---------- */
 .hub {
   position: absolute; top: var(--chrome-h); right: 0; bottom: 0; width: 380px;
   background: var(--glass-2);
@@ -419,9 +400,20 @@ kbd {
 }
 
 /* ============================================================
-   TOAST
+   TOAST — POPRAWKA: wyświetlane u GÓRY (nad WebContentsView)
    ============================================================ */
-.toast-container { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 200; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.toast-container {
+  position: fixed;
+  top: 56px;                      /* ← było bottom: 24px */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+  align-items: center;
+}
 .toast {
   background: var(--glass-2);
   backdrop-filter: blur(var(--blur)) saturate(180%);
@@ -434,27 +426,21 @@ kbd {
   animation: toastIn .3s ease;
   pointer-events: auto;
   max-width: 380px;
+  -webkit-app-region: no-drag;    /* ← NOWE */
 }
 .toast.toast-error { border-color: #ff453a; color: #ff453a; }
 .toast.toast-success { border-color: #34c759; }
-@keyframes toastIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes toastIn { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
 
-/* ============================================================
-   FOCUS MODE
-   ============================================================ */
+/* ---------- FOCUS MODE ---------- */
 body.focus-mode .sidebar, body.focus-mode .hud, body.focus-mode .win-controls { display: none; }
 body.focus-mode .tabs { max-width: calc(100% - 60px); }
 
-/* ============================================================
-   NEXUS — CUSTOM MODAL  (POPRAWKA: brak backdrop-filter na overlay!)
-   ============================================================ */
+/* ---------- MODAL ---------- */
 .modal-overlay {
   position: fixed;
   inset: 0;
   z-index: 1000;
-  /* POPRAWKA: usunięte backdrop-filter: blur(6px) — to powodowało artefakt
-     renderowania w Electronie (zamazane całe okno zamiast dialogu).
-     Zamiast tego ciemniejsze tło. */
   background: rgba(0, 0, 0, .55);
   display: flex;
   align-items: center;
@@ -463,17 +449,13 @@ body.focus-mode .tabs { max-width: calc(100% - 60px); }
 }
 .modal-overlay[hidden] { display: none; }
 
-@keyframes modalFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
+@keyframes modalFadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 .modal-box {
   min-width: 400px;
   max-width: 520px;
   max-height: 80vh;
   background: var(--glass-2);
-  /* POPRAWKA: mniejszy blur — zachowany efekt szkła, ale bez artefaktów */
   backdrop-filter: blur(var(--blur)) saturate(180%);
   -webkit-backdrop-filter: blur(var(--blur)) saturate(180%);
   border: 1px solid var(--border);
@@ -499,20 +481,12 @@ body.focus-mode .tabs { max-width: calc(100% - 60px); }
   padding: 16px 20px;
   border-bottom: 1px solid var(--border-outer);
 }
-
-.modal-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--text);
-}
-
+.modal-title { font-size: 15px; font-weight: 700; color: var(--text); }
 .modal-x {
   width: 30px; height: 30px;
-  border: 0;
-  background: transparent;
+  border: 0; background: transparent;
   color: var(--text-dim);
-  border-radius: 8px;
-  cursor: pointer;
+  border-radius: 8px; cursor: pointer;
   font-size: 14px;
   display: grid; place-items: center;
 }
@@ -528,7 +502,6 @@ body.focus-mode .tabs { max-width: calc(100% - 60px); }
   white-space: pre-wrap;
   word-wrap: break-word;
 }
-
 .modal-body input.modal-input,
 .modal-body textarea.modal-input {
   width: 100%;
@@ -592,9 +565,7 @@ body.focus-mode .tabs { max-width: calc(100% - 60px); }
 
 .hud-item[title] { cursor: help; }
 
-/* ============================================================
-   DOWNLOAD ITEM — ulepszone
-   ============================================================ */
+/* ---------- DOWNLOAD ITEM ---------- */
 .download-item {
   display: flex;
   align-items: center;
@@ -608,7 +579,6 @@ body.focus-mode .tabs { max-width: calc(100% - 60px); }
   box-shadow: inset 0 1px 0 var(--specular-soft);
 }
 .download-item:hover { background: rgba(127,127,140,.10); }
-
 .download-icon {
   width: 30px; height: 30px;
   border-radius: 8px;
@@ -618,7 +588,6 @@ body.focus-mode .tabs { max-width: calc(100% - 60px); }
   font-size: 14px;
   flex: 0 0 auto;
 }
-
 .download-info { flex: 1; min-width: 0; }
 .download-name {
   font-size: 12px;
@@ -629,8 +598,7 @@ body.focus-mode .tabs { max-width: calc(100% - 60px); }
 }
 .download-meta { font-size: 10.5px; color: var(--text-dim); margin-top: 2px; }
 .download-progress {
-  width: 100%;
-  height: 4px;
+  width: 100%; height: 4px;
   background: rgba(127,127,140,.22);
   border-radius: 4px;
   margin-top: 6px;
@@ -653,13 +621,5 @@ body.focus-mode .tabs { max-width: calc(100% - 60px); }
 }
 .download-actions button:hover { background: rgba(127,127,140,.18); color: var(--text); }
 
-/* ============================================================
-   PRZYCISK USTAWIEŃ W TOP BARZE
-   ============================================================ */
-#btnSettingsTop {
-  color: var(--text-dim);
-}
-#btnSettingsTop:hover {
-  background: rgba(127,127,140,.14);
-  color: var(--text);
-}
+#btnSettingsTop { color: var(--text-dim); }
+#btnSettingsTop:hover { background: rgba(127,127,140,.14); color: var(--text); }
