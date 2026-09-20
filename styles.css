@@ -92,7 +92,6 @@ body[data-cursor="minimal"] {
 }
 body[data-cursor="default"] { cursor: default; }
 
-/* Kursor pointer na elementach interaktywnych */
 button, .side-btn, .icon-btn, .tab, .theme-card, a,
 input[type=range], .list-item, .hub-toggle {
   cursor: inherit;
@@ -445,16 +444,18 @@ kbd {
    ============================================================ */
 body.focus-mode .sidebar, body.focus-mode .hud, body.focus-mode .win-controls { display: none; }
 body.focus-mode .tabs { max-width: calc(100% - 60px); }
+
 /* ============================================================
-   NEXUS — CUSTOM MODAL (zamiast alert/confirm Windowsa)
+   NEXUS — CUSTOM MODAL  (POPRAWKA: brak backdrop-filter na overlay!)
    ============================================================ */
 .modal-overlay {
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: rgba(0, 0, 0, .45);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  /* POPRAWKA: usunięte backdrop-filter: blur(6px) — to powodowało artefakt
+     renderowania w Electronie (zamazane całe okno zamiast dialogu).
+     Zamiast tego ciemniejsze tło. */
+  background: rgba(0, 0, 0, .55);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -472,8 +473,9 @@ body.focus-mode .tabs { max-width: calc(100% - 60px); }
   max-width: 520px;
   max-height: 80vh;
   background: var(--glass-2);
-  backdrop-filter: blur(calc(var(--blur) + 8px)) saturate(180%);
-  -webkit-backdrop-filter: blur(calc(var(--blur) + 8px)) saturate(180%);
+  /* POPRAWKA: mniejszy blur — zachowany efekt szkła, ale bez artefaktów */
+  backdrop-filter: blur(var(--blur)) saturate(180%);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(180%);
   border: 1px solid var(--border);
   border-radius: 20px;
   box-shadow:
@@ -588,7 +590,6 @@ body.focus-mode .tabs { max-width: calc(100% - 60px); }
 }
 .modal-btn.danger:hover { background: rgba(255,69,58,.26); }
 
-/* Breakdown w HUD tooltip */
 .hud-item[title] { cursor: help; }
 
 /* ============================================================

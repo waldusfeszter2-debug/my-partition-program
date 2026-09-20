@@ -1,5 +1,5 @@
 /* ==========================================================================
-   NEXUS 1.0 – settings.js
+   NEXUS 1.0 – settings.js  (POPRAWIONY – bez artefaktów blur w modalach)
    ========================================================================== */
 const $  = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -8,11 +8,15 @@ let SETTINGS = {};
 let PASSWORDS = [];
 let COOKIES = [];
 
-/* ---------- CUSTOM DIALOGI ---------- */
+/* ---------- CUSTOM DIALOGI ----------
+   POPRAWKA: usunięto backdrop-filter: blur(6px) z overlay — powodowało
+   artefakt renderowania w Electronie (zamazane całe okno zamiast dialogu).
+   Tło przyciemnione do rgba(0,0,0,.55) żeby zrekompensować brak blura.
+*/
 function nexusAlert(title, message) {
   return new Promise(resolve => {
     const overlay = document.createElement('div');
-    overlay.style.cssText = `position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.45);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;`;
+    overlay.style.cssText = `position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;`;
     overlay.innerHTML = `<div style="min-width:360px;max-width:480px;background:var(--glass-2);border:1px solid var(--border);border-radius:20px;box-shadow:inset 0 1px 0 var(--specular),0 20px 60px rgba(0,0,0,.35);overflow:hidden;"><div style="padding:16px 20px;border-bottom:1px solid var(--border-outer);font-size:15px;font-weight:700;color:var(--text);">${title}</div><div style="padding:20px;font-size:13.5px;color:var(--text);line-height:1.55;white-space:pre-wrap;">${message}</div><div style="padding:14px 20px;display:flex;justify-content:flex-end;border-top:1px solid var(--border-outer);background:rgba(127,127,140,.03);"><button class="nd-ok" style="min-width:88px;height:36px;padding:0 16px;border-radius:12px;border:0;background:linear-gradient(135deg,var(--accent-1),var(--accent-3));color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;">OK</button></div></div>`;
     document.body.appendChild(overlay);
     overlay.querySelector('.nd-ok').addEventListener('click', () => { overlay.remove(); resolve(true); });
@@ -21,7 +25,7 @@ function nexusAlert(title, message) {
 function nexusConfirm(title, message, confirmLabel = 'OK', danger = false) {
   return new Promise(resolve => {
     const overlay = document.createElement('div');
-    overlay.style.cssText = `position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.45);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;`;
+    overlay.style.cssText = `position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;`;
     const btnBg = danger ? 'rgba(255,69,58,.16)' : 'linear-gradient(135deg,var(--accent-1),var(--accent-3))';
     const btnColor = danger ? '#ff453a' : '#fff';
     const btnBorder = danger ? '1px solid rgba(255,69,58,.30)' : '0';
@@ -58,8 +62,7 @@ async function loadSettings() {
 }
 
 /* ==========================================================================
-   SYNC UI – aktualizuje wszystkie pola w oknie ustawień
-   W tym: kursor customowy (body[data-cursor])
+   SYNC UI
    ========================================================================== */
 function syncUI(s) {
   const setVal = (id, val) => {
@@ -110,10 +113,6 @@ function syncUI(s) {
   setVal('advRamLimit', s.ramLimit ?? 4096);
   setVal('advProcLimit', s.processLimit ?? 0);
 
-  /* ---------- KURSOR CUSTOMOWY ----------
-     Ustawiamy atrybut data-cursor na <body> okna ustawień.
-     CSS w styles.css interpretuje: body[data-cursor="..."] { cursor: url(...) }
-     Dzięki temu custom kursor działa też tutaj — a nie tylko w oknie głównym. */
   if (s.customCursor) {
     document.body.setAttribute('data-cursor', s.customCursor);
   }
@@ -418,7 +417,6 @@ async function loadAboutInfo() {
     $('#appPlatform').textContent = m.platform || navigator.platform || '—';
     $('#appArch').textContent = m.arch || '—';
 
-    // ← DODAJ TO (3 linijki):
     const v = await window.nexus.getCurrentVersion();
     if (v?.version) $('#appVersion').textContent = v.version;
   } catch (e) {}
@@ -435,9 +433,7 @@ function debounce(fn, ms = 200) {
   return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
 }
 
-/* ==========================================================================
-   Sync ze zmianami z innych okien (np. z okna głównego NEXUS)
-   ========================================================================== */
+/* ---------- SYNC Z INNYCH OKIEN ---------- */
 window.nexus.onSettingsChanged?.((s) => {
   SETTINGS = s;
   syncUI(s);
